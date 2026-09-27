@@ -19,6 +19,7 @@ internet connection, and was inspired by [3dp.rocks/lithophane](https://3dp.rock
 - [Quick start](#quick-start)
 - [Documentation](#documentation)
 - [Project structure](#project-structure)
+- [License](#license)
 
 ## Features
 
@@ -142,3 +143,7 @@ The [user guide](docs/USER_GUIDE.md) explains every setting and includes printin
 | `MainWindow.axaml(.cs)` | UI |
 
 The model stands upright (Z = up), which is the usual orientation for printing lithophanes.
+
+## License
+
+Released under the [MIT License](LICENSE).
