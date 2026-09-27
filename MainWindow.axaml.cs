@@ -4,7 +4,6 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
-using Avalonia.Threading;
 using LithophaneGUI.Core;
 
 namespace LithophaneGUI;
@@ -13,12 +12,13 @@ public partial class MainWindow : Window
 {
     /// <summary>Node budget for the interactive preview; exports always use the full resolution.</summary>
     private const int PreviewMaxNodes = 150_000;
+    private const int PreviewSupportCells = 500_000;
 
     private static readonly string[] ImageExtensions =
         { ".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp", ".ico", ".wbmp", ".heic", ".heif", ".avif" };
 
     private readonly ObservableCollection<ImageItem> _images = new();
-    private readonly DispatcherTimer _previewTimer;
+    private CancellationTokenSource? _debounceCts;
     private CancellationTokenSource? _previewCts;
     private bool _resetCameraOnNextPreview = true;
     private bool _busy;
@@ -27,13 +27,6 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         ImageList.ItemsSource = _images;
-
-        _previewTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
-        _previewTimer.Tick += (_, _) =>
-        {
-            _previewTimer.Stop();
-            _ = UpdatePreviewAsync();
-        };
 
         AddHandler(DragDrop.DropEvent, OnDrop);
         AddHandler(DragDrop.DragOverEvent, OnDragOver);
@@ -65,6 +58,18 @@ public partial class MainWindow : Window
             CurveAngle = V(CurveBox, 120),
             StandDepth = V(StandDepthBox, 0),
             StandHeight = V(StandHeightBox, 3),
+            LightSupport = (LightSupportType)Math.Max(0, LightCombo.SelectedIndex),
+            SupportHeight = V(SupportHeightBox, 20),
+            SlotDepth = V(SlotDepthBox, 4),
+            SlotClearance = V(ClearanceBox, 0.3),
+            SupportWall = V(SupportWallBox, 2),
+            SupportMinDepth = V(MinDepthBox, 30),
+            CableDiameter = V(CableBox, 6),
+            LedChannelWidth = V(LedWidthBox, 12),
+            LedChannelDepth = V(LedDepthBox, 6),
+            LampDiameter = V(LampDiameterBox, 40),
+            LampDepth = V(LampDepthBox, 12),
+            LampThroughHole = ThroughCheck.IsChecked == true,
         };
     }
 
@@ -77,15 +82,57 @@ public partial class MainWindow : Window
         SchedulePreview();
     }
 
+    private void OnLightChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        UpdateShapeDependentControls();
+        _resetCameraOnNextPreview = true;
+        SchedulePreview();
+    }
+
+    private static readonly (double Diameter, double Depth, bool Through)[] LampPresets =
+    {
+        (40, 12, false),   // tea light, Ø38 + clearance
+        (62, 12, false),   // LED puck light
+        (29, 0, true),     // E14 lamp holder
+        (40.5, 0, true),   // E27 lamp holder
+        (10.5, 0, true),   // M10 threaded lamp tube
+    };
+
+    private void OnLampPresetChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (LampDiameterBox == null) return;
+        int i = LampPresetCombo.SelectedIndex;
+        if (i < 0 || i >= LampPresets.Length) return; // custom: keep values
+        var (dia, depth, through) = LampPresets[i];
+        LampDiameterBox.Value = (decimal)dia;
+        if (depth > 0) LampDepthBox.Value = (decimal)depth;
+        ThroughCheck.IsChecked = through;
+        SchedulePreview();
+    }
+
     private void UpdateShapeDependentControls()
     {
-        if (CurveBox == null) return;
+        if (CurveBox == null || LightCombo == null) return;
         var shape = (ShapeType)Math.Max(0, ShapeCombo.SelectedIndex);
         bool curved = shape is ShapeType.OuterCurve or ShapeType.InnerCurve;
         CurveBox.IsEnabled = CurveLabel.IsEnabled = curved;
         CurveLabel.Opacity = curved ? 1 : 0.5;
 
-        bool stand = shape != ShapeType.Dome;
+        var light = (LightSupportType)Math.Max(0, LightCombo.SelectedIndex);
+        bool closed = shape is ShapeType.Cylinder or ShapeType.Heart or ShapeType.Dome;
+        LedPanel.IsVisible = light == LightSupportType.LedStrip;
+        LampPanel.IsVisible = light == LightSupportType.Lamp;
+        LightHint.IsVisible = light != LightSupportType.None;
+        foreach (var c in new Control[] { SupportHeightBox, SlotDepthBox, ClearanceBox, SupportWallBox, CableBox })
+            c.IsEnabled = light != LightSupportType.None;
+        // Closed shapes get a tray over the whole inside instead of a channel, and have no front/back depth.
+        MinDepthBox.IsEnabled = MinDepthLabel.IsEnabled = light != LightSupportType.None && !closed;
+        MinDepthLabel.Opacity = MinDepthBox.IsEnabled ? 1 : 0.5;
+        LedWidthBox.IsEnabled = !closed;
+        LedWidthLabel.Opacity = closed ? 0.5 : 1;
+        LayoutRow.IsVisible = light != LightSupportType.None;
+
+        bool stand = shape != ShapeType.Dome && light == LightSupportType.None;
         StandDepthBox.IsEnabled = StandHeightBox.IsEnabled = stand;
         StandDepthLabel.Opacity = StandHeightLabel.Opacity = stand ? 1 : 0.5;
     }
@@ -185,11 +232,29 @@ public partial class MainWindow : Window
     private void SchedulePreview(bool immediate = false)
     {
         if (!IsInitialized || SelectedItem == null) return;
-        _previewTimer.Stop();
+        _debounceCts?.Cancel();
         if (immediate)
+        {
             _ = UpdatePreviewAsync();
-        else
-            _previewTimer.Start();
+            return;
+        }
+
+        // Wait for the user to stop changing values before regenerating.
+        var cts = _debounceCts = new CancellationTokenSource();
+        _ = DebouncedPreviewAsync(cts.Token);
+    }
+
+    private async Task DebouncedPreviewAsync(CancellationToken token)
+    {
+        try
+        {
+            await Task.Delay(250, token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        await UpdatePreviewAsync();
     }
 
     private async Task UpdatePreviewAsync()
@@ -203,12 +268,17 @@ public partial class MainWindow : Window
         var image = item.Image;
         try
         {
-            var mesh = await Task.Run(() => LithophaneGenerator.Generate(image, settings, PreviewMaxNodes, cts.Token), cts.Token);
+            var (mesh, notes) = await Task.Run(() =>
+            {
+                var parts = LithophaneGenerator.GenerateParts(image, settings, PreviewMaxNodes, PreviewSupportCells, cts.Token);
+                return (LithophaneGenerator.Assemble(parts), parts.Notes);
+            }, cts.Token);
             if (cts.IsCancellationRequested) return;
 
             Preview.SetMesh(mesh, _resetCameraOnNextPreview);
             _resetCameraOnNextPreview = false;
-            InfoText.Text = DescribeModel(mesh, image, settings);
+            InfoText.Text = DescribeModel(mesh, image, settings) +
+                string.Concat(notes.Select(n => "\n⚠ " + n));
         }
         catch (OperationCanceledException)
         {
@@ -230,7 +300,7 @@ public partial class MainWindow : Window
         double triangles = nodes * 4;
         double mb = (84 + triangles * 50) / (1024.0 * 1024.0);
         return $"Model: {size.X:0.#} × {size.Y:0.#} × {size.Z:0.#} mm\n" +
-               $"Export: ~{triangles / 1e6:0.00} M triangles, ~{mb:0} MB STL";
+               $"Lithophane: ~{triangles / 1e6:0.00} M triangles, ~{mb:0} MB STL";
     }
 
     private void OnBacklitChanged(object? sender, RoutedEventArgs e) =>
@@ -280,7 +350,9 @@ public partial class MainWindow : Window
         _busy = true;
         UpdateExportButtons();
         var settings = ReadSettings();
+        var layout = (ExportLayout)Math.Max(0, LayoutCombo.SelectedIndex);
         var sw = Stopwatch.StartNew();
+        var written = new List<string>();
         try
         {
             for (int n = 0; n < jobs.Count; n++)
@@ -289,13 +361,22 @@ public partial class MainWindow : Window
                 string prefix = jobs.Count > 1 ? $"[{n + 1}/{jobs.Count}] " : "";
                 SetStatus($"{prefix}Generating {item.Name}…");
                 var image = item.Image;
-                var mesh = await Task.Run(() => LithophaneGenerator.Generate(image, settings));
-                SetStatus($"{prefix}Writing {Path.GetFileName(path)} ({mesh.TriangleCount:N0} triangles)…");
-                await Task.Run(() => StlWriter.WriteBinary(mesh, path, Path.GetFileNameWithoutExtension(path)));
+                var files = await Task.Run(() =>
+                    LithophaneGenerator.Arrange(LithophaneGenerator.GenerateParts(image, settings), layout));
+
+                string dir = Path.GetDirectoryName(path) ?? "";
+                string stem = Path.GetFileNameWithoutExtension(path);
+                foreach (var (suffix, mesh) in files)
+                {
+                    string target = Path.Combine(dir, stem + suffix + ".stl");
+                    SetStatus($"{prefix}Writing {Path.GetFileName(target)} ({mesh.TriangleCount:N0} triangles)…");
+                    await Task.Run(() => StlWriter.WriteBinary(mesh, target, stem + suffix));
+                    written.Add(target);
+                }
             }
-            SetStatus(jobs.Count == 1
-                ? $"Saved {jobs[0].Path} in {sw.Elapsed.TotalSeconds:0.0} s"
-                : $"Saved {jobs.Count} STL files in {sw.Elapsed.TotalSeconds:0.0} s");
+            SetStatus(written.Count == 1
+                ? $"Saved {written[0]} in {sw.Elapsed.TotalSeconds:0.0} s"
+                : $"Saved {written.Count} STL files ({string.Join(", ", written.Take(3).Select(Path.GetFileName))}{(written.Count > 3 ? ", …" : "")}) in {sw.Elapsed.TotalSeconds:0.0} s");
         }
         catch (Exception ex)
         {

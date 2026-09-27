@@ -46,6 +46,10 @@ public abstract class Surface
             _ => throw new ArgumentOutOfRangeException(nameof(s)),
         };
     }
+
+    /// <summary>The curve along which the bottom edge of the lithophane runs (Z = 0).</summary>
+    public static ProfileSurface Footprint(LithophaneSettings s, double totalW, double totalH) =>
+        (ProfileSurface)Create(s.Shape == ShapeType.Dome ? s with { Shape = ShapeType.Cylinder } : s, totalW, totalH);
 }
 
 /// <summary>
@@ -61,6 +65,7 @@ public sealed class ProfileSurface : Surface
     private readonly double _length;
 
     public override bool ClosedU => _closed;
+    public double Length => _length;
 
     public ProfileSurface(Func<double, Vector2> curve, bool closed, double length)
     {

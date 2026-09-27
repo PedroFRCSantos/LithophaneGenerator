@@ -11,6 +11,36 @@ public sealed class Mesh
 
     public int TriangleCount => Indices.Count / 3;
 
+    /// <summary>
+    /// First vertex / triangle of a secondary part (the light support), drawn in a different
+    /// colour in the preview. Equal to the counts when there is none.
+    /// </summary>
+    public int SecondaryVertexStart { get; private set; } = int.MaxValue;
+    public int SecondaryTriangleStart { get; private set; } = int.MaxValue;
+
+    public Mesh Clone()
+    {
+        var m = new Mesh();
+        m.Vertices.AddRange(Vertices);
+        m.Thickness.AddRange(Thickness);
+        m.Indices.AddRange(Indices);
+        m.SecondaryVertexStart = SecondaryVertexStart;
+        m.SecondaryTriangleStart = SecondaryTriangleStart;
+        return m;
+    }
+
+    /// <summary>Appends another mesh as the secondary part.</summary>
+    public void AppendSecondary(Mesh other)
+    {
+        int offset = Vertices.Count;
+        SecondaryVertexStart = Math.Min(SecondaryVertexStart, offset);
+        SecondaryTriangleStart = Math.Min(SecondaryTriangleStart, TriangleCount);
+        Vertices.AddRange(other.Vertices);
+        Thickness.AddRange(other.Thickness);
+        Indices.Capacity = Indices.Count + other.Indices.Count;
+        foreach (int i in other.Indices) Indices.Add(i + offset);
+    }
+
     public (Vector3 Min, Vector3 Max) Bounds()
     {
         var min = new Vector3(float.MaxValue);

@@ -10,6 +10,23 @@ public enum ShapeType
     Dome,
 }
 
+public enum LightSupportType
+{
+    None,
+    LedStrip,
+    Lamp,
+}
+
+public enum ExportLayout
+{
+    /// <summary>Lithophane and light support in separate STL files.</summary>
+    SeparateFiles,
+    /// <summary>One STL with both parts next to each other on the print bed.</summary>
+    SideBySide,
+    /// <summary>One STL with the lithophane standing in the support (printed as one piece).</summary>
+    Assembled,
+}
+
 public sealed record LithophaneSettings
 {
     // Image settings
@@ -37,6 +54,23 @@ public sealed record LithophaneSettings
     public double StandDepth { get; init; }
     public double StandHeight { get; init; } = 3;
 
+    // Light support (base that holds the lithophane and the light source)
+    public LightSupportType LightSupport { get; init; } = LightSupportType.None;
+    public double SupportHeight { get; init; } = 20;
+    public double SlotDepth { get; init; } = 4;
+    /// <summary>Gap on each side of the lithophane inside the slot, in mm.</summary>
+    public double SlotClearance { get; init; } = 0.3;
+    public double SupportWall { get; init; } = 2;
+    /// <summary>Minimum front-to-back depth of the base for flat and curved lithophanes.</summary>
+    public double SupportMinDepth { get; init; } = 30;
+    public double LedChannelWidth { get; init; } = 12;
+    public double LedChannelDepth { get; init; } = 6;
+    public double LampDiameter { get; init; } = 40;
+    public double LampDepth { get; init; } = 12;
+    public bool LampThroughHole { get; init; }
+    public double CableDiameter { get; init; } = 6;
+
     public bool IsClosed => Shape is ShapeType.Cylinder or ShapeType.Heart or ShapeType.Dome;
-    public bool SupportsStand => Shape != ShapeType.Dome;
+    public bool HasLightSupport => LightSupport != LightSupportType.None;
+    public bool SupportsStand => Shape != ShapeType.Dome && !HasLightSupport;
 }

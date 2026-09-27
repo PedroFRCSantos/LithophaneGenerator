@@ -32,6 +32,14 @@
     <DockPanel Grid.Column="0">
       <StackPanel DockPanel.Dock="Bottom" Margin="12" Spacing="6">
         <TextBlock x:Name="InfoText" Classes="hint" Text="Add an image to begin." />
+        <Grid x:Name="LayoutRow" ColumnDefinitions="Auto,*" IsVisible="False">
+          <TextBlock Classes="label" Text="Export as" />
+          <ComboBox x:Name="LayoutCombo" Grid.Column="1" HorizontalAlignment="Stretch" SelectedIndex="0">
+            <ComboBoxItem Content="Separate files (lithophane + support)" />
+            <ComboBoxItem Content="One file – parts side by side" />
+            <ComboBoxItem Content="One file – assembled (single print)" />
+          </ComboBox>
+        </Grid>
         <Grid ColumnDefinitions="*,6,*">
           <Button x:Name="ExportButton" Grid.Column="0" HorizontalAlignment="Stretch"
                   HorizontalContentAlignment="Center" Classes="accent" Content="Export STL…"
@@ -138,6 +146,72 @@
             </StackPanel>
           </Expander>
 
+
+          <!-- Light support -->
+          <Expander Header="Light support" IsExpanded="True">
+            <StackPanel Spacing="4">
+              <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto">
+                <TextBlock Classes="label" Grid.Row="0" Text="Light source" />
+                <ComboBox x:Name="LightCombo" Grid.Row="0" Grid.Column="1" HorizontalAlignment="Stretch"
+                          SelectedIndex="0" SelectionChanged="OnLightChanged" Margin="0,2">
+                  <ComboBoxItem Content="None" />
+                  <ComboBoxItem Content="LED strip / string" />
+                  <ComboBoxItem Content="Lamp" />
+                </ComboBox>
+                <TextBlock Classes="label" Grid.Row="1" Text="Base height (mm)" />
+                <NumericUpDown x:Name="SupportHeightBox" Grid.Row="1" Grid.Column="1" Minimum="8" Maximum="100"
+                               Increment="1" Value="20" FormatString="0.#" ValueChanged="OnSettingChanged" />
+                <TextBlock Classes="label" Grid.Row="2" Text="Slot depth (mm)" />
+                <NumericUpDown x:Name="SlotDepthBox" Grid.Row="2" Grid.Column="1" Minimum="1" Maximum="30"
+                               Increment="0.5" Value="4" FormatString="0.0#" ValueChanged="OnSettingChanged" />
+                <TextBlock Classes="label" Grid.Row="3" Text="Slot clearance (mm)" />
+                <NumericUpDown x:Name="ClearanceBox" Grid.Row="3" Grid.Column="1" Minimum="0" Maximum="2"
+                               Increment="0.05" Value="0.3" FormatString="0.0#" ValueChanged="OnSettingChanged" />
+                <TextBlock Classes="label" Grid.Row="4" Text="Wall thickness (mm)" />
+                <NumericUpDown x:Name="SupportWallBox" Grid.Row="4" Grid.Column="1" Minimum="0.8" Maximum="10"
+                               Increment="0.2" Value="2" FormatString="0.0#" ValueChanged="OnSettingChanged" />
+                <TextBlock x:Name="MinDepthLabel" Classes="label" Grid.Row="5" Text="Min. base depth (mm)" />
+                <NumericUpDown x:Name="MinDepthBox" Grid.Row="5" Grid.Column="1" Minimum="0" Maximum="200"
+                               Increment="1" Value="30" FormatString="0.#" ValueChanged="OnSettingChanged" />
+                <TextBlock Classes="label" Grid.Row="6" Text="Cable hole Ø (mm)" />
+                <NumericUpDown x:Name="CableBox" Grid.Row="6" Grid.Column="1" Minimum="2" Maximum="20"
+                               Increment="0.5" Value="6" FormatString="0.0#" ValueChanged="OnSettingChanged" />
+              </Grid>
+
+              <Grid x:Name="LedPanel" ColumnDefinitions="*,*" RowDefinitions="Auto,Auto">
+                <TextBlock x:Name="LedWidthLabel" Classes="label" Grid.Row="0" Text="LED channel width (mm)" />
+                <NumericUpDown x:Name="LedWidthBox" Grid.Row="0" Grid.Column="1" Minimum="3" Maximum="60"
+                               Increment="1" Value="12" FormatString="0.#" ValueChanged="OnSettingChanged" />
+                <TextBlock Classes="label" Grid.Row="1" Text="LED channel depth (mm)" />
+                <NumericUpDown x:Name="LedDepthBox" Grid.Row="1" Grid.Column="1" Minimum="1" Maximum="80"
+                               Increment="0.5" Value="6" FormatString="0.0#" ValueChanged="OnSettingChanged" />
+              </Grid>
+
+              <Grid x:Name="LampPanel" ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto">
+                <TextBlock Classes="label" Grid.Row="0" Text="Lamp type" />
+                <ComboBox x:Name="LampPresetCombo" Grid.Row="0" Grid.Column="1" HorizontalAlignment="Stretch"
+                          SelectedIndex="0" SelectionChanged="OnLampPresetChanged" Margin="0,2">
+                  <ComboBoxItem Content="Tea light (Ø38)" />
+                  <ComboBoxItem Content="LED puck light (Ø60)" />
+                  <ComboBoxItem Content="E14 socket (Ø29 hole)" />
+                  <ComboBoxItem Content="E27 socket (Ø40 hole)" />
+                  <ComboBoxItem Content="Lamp tube M10 (Ø10.5)" />
+                  <ComboBoxItem Content="Custom" />
+                </ComboBox>
+                <TextBlock Classes="label" Grid.Row="1" Text="Lamp hole Ø (mm)" />
+                <NumericUpDown x:Name="LampDiameterBox" Grid.Row="1" Grid.Column="1" Minimum="3" Maximum="200"
+                               Increment="0.5" Value="40" FormatString="0.0#" ValueChanged="OnSettingChanged" />
+                <TextBlock Classes="label" Grid.Row="2" Text="Recess depth (mm)" />
+                <NumericUpDown x:Name="LampDepthBox" Grid.Row="2" Grid.Column="1" Minimum="1" Maximum="80"
+                               Increment="0.5" Value="12" FormatString="0.0#" ValueChanged="OnSettingChanged" />
+                <CheckBox x:Name="ThroughCheck" Grid.Row="3" Grid.ColumnSpan="2" Content="Hole goes through the base (socket)"
+                          IsCheckedChanged="OnSettingChanged" />
+              </Grid>
+
+              <TextBlock x:Name="LightHint" Classes="hint"
+                         Text="The lithophane slides into the slot; keep the border at least as tall as the slot depth so no image is hidden. The cable runs through a hole and a groove under the base." />
+            </StackPanel>
+          </Expander>
         </StackPanel>
       </ScrollViewer>
     </DockPanel>

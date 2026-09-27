@@ -67,8 +67,10 @@ public sealed class SoftwareRenderer
         var proj = Matrix4x4.CreatePerspectiveFieldOfView(cam.FieldOfView, (float)width / height, near, cam.Distance * 10 + 1000);
         var viewProj = view * proj;
 
+        int litVertices = Math.Min(nv, mesh.SecondaryVertexStart);
+        int secondaryTri = mesh.SecondaryTriangleStart;
         float tMin = float.MaxValue, tMax = float.MinValue;
-        foreach (var t in mesh.Thickness) { tMin = Math.Min(tMin, t); tMax = Math.Max(tMax, t); }
+        for (int i = 0; i < litVertices; i++) { tMin = Math.Min(tMin, mesh.Thickness[i]); tMax = Math.Max(tMax, mesh.Thickness[i]); }
         // Transmission falls roughly exponentially with thickness.
         float absorb = tMax > tMin ? MathF.Log(25f) / (tMax - tMin) : 0;
 
@@ -80,7 +82,7 @@ public sealed class SoftwareRenderer
             screen[i] = c.W <= near
                 ? new Vector3(float.NaN)
                 : new Vector3((c.X / c.W + 1) * 0.5f * width, (1 - c.Y / c.W) * 0.5f * height, c.Z / c.W);
-            if (backlit)
+            if (backlit && i < litVertices)
                 vshade[i] = MathF.Exp(-absorb * (mesh.Thickness[i] - tMin));
         });
 
@@ -134,7 +136,9 @@ public sealed class SoftwareRenderer
 
                 float inv = 1f / area;
                 float s0 = 0, s1 = 0, s2 = 0, flat = tshade[t];
-                if (backlit) { s0 = vshade[i0]; s1 = vshade[i1]; s2 = vshade[i2]; }
+                bool secondary = t >= secondaryTri;
+                bool lit = backlit && !secondary;
+                if (lit) { s0 = vshade[i0]; s1 = vshade[i1]; s2 = vshade[i2]; }
 
                 for (int y = yStart; y <= yEnd; y++)
                 {
@@ -155,8 +159,8 @@ public sealed class SoftwareRenderer
                         if (z >= depth[k]) continue;
                         depth[k] = z;
 
-                        pixels[k] = backlit
-                            ? Backlit(w0 * s0 + w1 * s1 + w2 * s2, flat)
+                        pixels[k] = secondary ? Support(flat, backlit)
+                            : lit ? Backlit(w0 * s0 + w1 * s1 + w2 * s2, flat)
                             : Shaded(flat);
                     }
                 }
@@ -167,6 +171,13 @@ public sealed class SoftwareRenderer
     private static int Shaded(float i)
     {
         int r = (int)(235 * i), g = (int)(228 * i), b = (int)(215 * i);
+        return unchecked((int)0xFF000000) | (r << 16) | (g << 8) | b;
+    }
+
+    private static int Support(float i, bool dim)
+    {
+        if (dim) i *= 0.35f;
+        int r = (int)(120 * i), g = (int)(160 * i), b = (int)(215 * i);
         return unchecked((int)0xFF000000) | (r << 16) | (g << 8) | b;
     }
 

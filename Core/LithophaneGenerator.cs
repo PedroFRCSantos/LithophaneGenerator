@@ -2,11 +2,26 @@ using System.Numerics;
 
 namespace LithophaneGUI.Core;
 
+public sealed record ModelParts(Mesh Lithophane, Mesh? Support, IReadOnlyList<string> Notes);
+
 public static class LithophaneGenerator
 {
     /// <summary>Builds the lithophane mesh, resting on Z = 0 and centred on the origin in X/Y.</summary>
     public static Mesh Generate(GrayImage image, LithophaneSettings s, int maxNodes = int.MaxValue,
         CancellationToken ct = default)
+    {
+        var mesh = GenerateParts(image, s, maxNodes, 0, ct).Lithophane;
+        PlaceOnBed(mesh);
+        return mesh;
+    }
+
+    /// <summary>
+    /// Builds the lithophane and, if enabled, its light support, both in the same coordinate frame
+    /// (the lithophane standing in the support's slot).
+    /// </summary>
+    /// <param name="supportCells">Voxel budget for the support; 0 picks a default suited to export.</param>
+    public static ModelParts GenerateParts(GrayImage image, LithophaneSettings s, int maxNodes = int.MaxValue,
+        int supportCells = 0, CancellationToken ct = default)
     {
         var map = HeightMap.Build(image, s, maxNodes);
         ct.ThrowIfCancellationRequested();
@@ -40,9 +55,74 @@ public static class LithophaneGenerator
         if (mesh.SignedVolume() < 0)
             mesh.FlipWinding();
 
+        var notes = new List<string>();
+        Mesh? support = null;
+        if (s.HasLightSupport)
+        {
+            var footprint = Surface.Footprint(s, map.WidthMm, map.HeightMm);
+            support = LightSupportGenerator.Generate(s, footprint,
+                supportCells > 0 ? supportCells : 4_000_000, notes, ct);
+        }
+
+        return new ModelParts(mesh, support, notes);
+    }
+
+    /// <summary>Moves a mesh so it rests on Z = 0, centred on the origin in X/Y.</summary>
+    public static void PlaceOnBed(Mesh mesh)
+    {
         var (min, max) = mesh.Bounds();
         mesh.Translate(new Vector3(-(min.X + max.X) / 2, -(min.Y + max.Y) / 2, -min.Z));
+    }
+
+    /// <summary>Lithophane standing in its support, with the support drawn as the secondary part.</summary>
+    public static Mesh Assemble(ModelParts parts)
+    {
+        var mesh = parts.Lithophane.Clone();
+        if (parts.Support != null)
+            mesh.AppendSecondary(parts.Support);
+        PlaceOnBed(mesh);
         return mesh;
+    }
+
+    /// <summary>Returns the meshes to write for the chosen layout, each with a file-name suffix.</summary>
+    public static List<(string Suffix, Mesh Mesh)> Arrange(ModelParts parts, ExportLayout layout)
+    {
+        if (parts.Support == null)
+        {
+            var only = parts.Lithophane.Clone();
+            PlaceOnBed(only);
+            return new() { ("", only) };
+        }
+
+        switch (layout)
+        {
+            case ExportLayout.Assembled:
+                return new() { ("", Assemble(parts)) };
+
+            case ExportLayout.SideBySide:
+            {
+                var litho = parts.Lithophane.Clone();
+                var support = parts.Support.Clone();
+                PlaceOnBed(litho);
+                PlaceOnBed(support);
+                const float gap = 5;
+                var (lMin, lMax) = litho.Bounds();
+                var (sMin, _) = support.Bounds();
+                support.Translate(new Vector3(0, lMax.Y + gap - sMin.Y, 0));
+                litho.AppendSecondary(support);
+                PlaceOnBed(litho);
+                return new() { ("", litho) };
+            }
+
+            default:
+            {
+                var litho = parts.Lithophane.Clone();
+                var support = parts.Support.Clone();
+                PlaceOnBed(litho);
+                PlaceOnBed(support);
+                return new() { ("_lithophane", litho), ("_light_support", support) };
+            }
+        }
     }
 
     /// <summary>
