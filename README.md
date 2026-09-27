@@ -30,6 +30,11 @@ dotnet publish -c Release -r linux-x64 --self-contained   # or -r win-x64
 - Interactive 3D preview (left-drag rotate, right-drag pan, wheel zoom) with a
   **backlit** mode that simulates light shining through the print
 - Export a watertight binary STL for the selected image, or all images to a folder
+- **Projects** (`.lipo`): New / Open / Save / Save as (Ctrl+N, Ctrl+O, Ctrl+S, Ctrl+Shift+S).
+  A project stores all settings and embeds the images, so it still opens if the originals move.
+  Drop a `.lipo` onto the window or pass it on the command line to open it.
+- The app reopens where you left off: the last project (including unsaved changes) is
+  restored on the next start
 
 The model stands upright (Z = up), which is the usual orientation for printing lithophanes.
 
@@ -44,6 +49,7 @@ The model stands upright (Z = up), which is the usual orientation for printing l
 | `Core/LightSupportGenerator.cs` | Light support base, modelled as a signed distance field |
 | `Core/SurfaceNets.cs` | Distance field → watertight mesh |
 | `Core/StlWriter.cs` | Binary STL output |
+| `Core/LithophaneProject.cs` | `.lipo` project file (JSON: settings + embedded images) |
 | `Rendering/SoftwareRenderer.cs` | Multi-threaded z-buffer preview renderer |
 | `Controls/PreviewControl.cs` | Interactive preview control |
 | `MainWindow.axaml(.cs)` | UI |

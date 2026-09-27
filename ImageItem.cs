@@ -13,16 +13,31 @@ public sealed class ImageItem : INotifyPropertyChanged
     private GrayImage _image;
     private Bitmap _thumbnail;
 
-    public ImageItem(string path, GrayImage image)
+    /// <param name="fileData">The original image file, kept so it can be embedded in a project.</param>
+    public ImageItem(string path, byte[] fileData, GrayImage image, int rotation = 0)
     {
         Path = path;
+        FileData = fileData;
+        Rotation = rotation;
         _image = image;
         _thumbnail = CreateThumbnail(image);
+    }
+
+    /// <summary>Decodes an image file (on the calling thread) and applies the given number of 90° turns.</summary>
+    public static GrayImage Decode(byte[] fileData, string name, int rotation)
+    {
+        var img = GrayImage.Load(fileData, name);
+        for (int i = 0; i < ((rotation % 4) + 4) % 4; i++)
+            img = img.Rotate90();
+        return img;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public string Path { get; }
+    public byte[] FileData { get; }
+    /// <summary>Number of 90° rotations applied to the original image.</summary>
+    public int Rotation { get; private set; }
     public string Name => System.IO.Path.GetFileName(Path);
     public string SizeText => $"{_image.Width} × {_image.Height} px";
     public Bitmap Thumbnail => _thumbnail;
@@ -30,7 +45,7 @@ public sealed class ImageItem : INotifyPropertyChanged
     public GrayImage Image
     {
         get => _image;
-        set
+        private set
         {
             _image = value;
             _thumbnail = CreateThumbnail(value);
@@ -38,6 +53,12 @@ public sealed class ImageItem : INotifyPropertyChanged
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Thumbnail)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SizeText)));
         }
+    }
+
+    public void Rotate90()
+    {
+        Rotation = (Rotation + 1) % 4;
+        Image = _image.Rotate90();
     }
 
     private static Bitmap CreateThumbnail(GrayImage img, int maxSide = 96)

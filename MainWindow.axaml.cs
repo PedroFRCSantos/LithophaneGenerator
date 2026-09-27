@@ -1,8 +1,11 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Text.Json;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Layout;
 using Avalonia.Platform.Storage;
 using LithophaneGUI.Core;
 
@@ -23,14 +26,32 @@ public partial class MainWindow : Window
     private bool _resetCameraOnNextPreview = true;
     private bool _busy;
 
-    public MainWindow()
+    private static readonly string StateDir =
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "LithophaneGUI");
+    private static readonly string SessionFile = Path.Combine(StateDir, "session" + LithophaneProject.Extension);
+    private static readonly string StateFile = Path.Combine(StateDir, "state.json");
+
+    private readonly string[] _startupArgs;
+    private string? _projectPath;
+    private bool _dirty;
+    private bool _loadingProject;
+
+    public MainWindow() : this(Array.Empty<string>())
     {
+    }
+
+    public MainWindow(string[] args)
+    {
+        _startupArgs = args;
         InitializeComponent();
         ImageList.ItemsSource = _images;
 
         AddHandler(DragDrop.DropEvent, OnDrop);
         AddHandler(DragDrop.DragOverEvent, OnDragOver);
         UpdateShapeDependentControls();
+        Opened += OnOpened;
+        Closing += OnClosing;
+        UpdateTitle();
     }
 
     private ImageItem? SelectedItem => ImageList?.SelectedItem as ImageItem;
@@ -73,10 +94,50 @@ public partial class MainWindow : Window
         };
     }
 
-    private void OnSettingChanged(object? sender, RoutedEventArgs e) => SchedulePreview();
+    private void ApplySettings(LithophaneSettings s)
+    {
+        NegativeRadio.IsChecked = s.Negative;
+        PositiveRadio.IsChecked = !s.Negative;
+        MirrorCheck.IsChecked = s.MirrorX;
+        FlipCheck.IsChecked = s.FlipY;
+        RepeatXBox.Value = s.RepeatX;
+        RepeatYBox.Value = s.RepeatY;
+        GammaBox.Value = (decimal)s.Gamma;
+        ShapeCombo.SelectedIndex = (int)s.Shape;
+        SizeBox.Value = (decimal)s.MaxSize;
+        ThicknessBox.Value = (decimal)s.Thickness;
+        MinThicknessBox.Value = (decimal)s.MinThickness;
+        BorderBox.Value = (decimal)s.Border;
+        ResolutionBox.Value = (decimal)s.Resolution;
+        CurveBox.Value = (decimal)s.CurveAngle;
+        StandDepthBox.Value = (decimal)s.StandDepth;
+        StandHeightBox.Value = (decimal)s.StandHeight;
+        LightCombo.SelectedIndex = (int)s.LightSupport;
+        SupportHeightBox.Value = (decimal)s.SupportHeight;
+        SlotDepthBox.Value = (decimal)s.SlotDepth;
+        ClearanceBox.Value = (decimal)s.SlotClearance;
+        SupportWallBox.Value = (decimal)s.SupportWall;
+        MinDepthBox.Value = (decimal)s.SupportMinDepth;
+        CableBox.Value = (decimal)s.CableDiameter;
+        LedWidthBox.Value = (decimal)s.LedChannelWidth;
+        LedDepthBox.Value = (decimal)s.LedChannelDepth;
+        LampDiameterBox.Value = (decimal)s.LampDiameter;
+        LampDepthBox.Value = (decimal)s.LampDepth;
+        ThroughCheck.IsChecked = s.LampThroughHole;
+        UpdateShapeDependentControls();
+    }
+
+    private void OnSettingChanged(object? sender, RoutedEventArgs e)
+    {
+        MarkDirty();
+        SchedulePreview();
+    }
+
+    private void OnLayoutChanged(object? sender, SelectionChangedEventArgs e) => MarkDirty();
 
     private void OnShapeChanged(object? sender, SelectionChangedEventArgs e)
     {
+        MarkDirty();
         UpdateShapeDependentControls();
         _resetCameraOnNextPreview = true;
         SchedulePreview();
@@ -84,6 +145,7 @@ public partial class MainWindow : Window
 
     private void OnLightChanged(object? sender, SelectionChangedEventArgs e)
     {
+        MarkDirty();
         UpdateShapeDependentControls();
         _resetCameraOnNextPreview = true;
         SchedulePreview();
@@ -102,6 +164,7 @@ public partial class MainWindow : Window
     {
         if (LampDiameterBox == null) return;
         int i = LampPresetCombo.SelectedIndex;
+        MarkDirty();
         if (i < 0 || i >= LampPresets.Length) return; // custom: keep values
         var (dia, depth, through) = LampPresets[i];
         LampDiameterBox.Value = (decimal)dia;
@@ -163,7 +226,15 @@ public partial class MainWindow : Window
     {
         var files = e.DataTransfer.TryGetFiles();
         if (files == null) return;
-        await AddFilesAsync(files.Select(f => f.TryGetLocalPath()).OfType<string>());
+        var paths = files.Select(f => f.TryGetLocalPath()).OfType<string>().ToList();
+        var project = paths.FirstOrDefault(IsProjectFile);
+        if (project != null)
+        {
+            if (await ConfirmDiscardChangesAsync())
+                await OpenProjectFileAsync(project);
+            return;
+        }
+        await AddFilesAsync(paths);
     }
 
     private async Task AddFilesAsync(IEnumerable<string> paths)
@@ -174,9 +245,14 @@ public partial class MainWindow : Window
             try
             {
                 SetStatus($"Loading {Path.GetFileName(path)}…");
-                var img = await Task.Run(() => GrayImage.Load(path));
-                last = new ImageItem(path, img);
+                var (data, img) = await Task.Run(() =>
+                {
+                    var bytes = File.ReadAllBytes(path);
+                    return (bytes, GrayImage.Load(bytes, Path.GetFileName(path)));
+                });
+                last = new ImageItem(path, data, img);
                 _images.Add(last);
+                MarkDirty();
             }
             catch (Exception ex)
             {
@@ -196,6 +272,7 @@ public partial class MainWindow : Window
         if (SelectedItem is not { } item) return;
         int index = _images.IndexOf(item);
         _images.Remove(item);
+        MarkDirty();
         if (_images.Count > 0)
             ImageList.SelectedIndex = Math.Min(index, _images.Count - 1);
     }
@@ -203,7 +280,8 @@ public partial class MainWindow : Window
     private void OnRotateClick(object? sender, RoutedEventArgs e)
     {
         if (SelectedItem is not { } item) return;
-        item.Image = item.Image.Rotate90();
+        item.Rotate90();
+        MarkDirty();
         _resetCameraOnNextPreview = true;
         SchedulePreview();
     }
@@ -387,6 +465,296 @@ public partial class MainWindow : Window
             _busy = false;
             UpdateExportButtons();
             GC.Collect();
+        }
+    }
+
+    // ---------------------------------------------------------------- project
+
+    private static bool IsProjectFile(string path) =>
+        string.Equals(Path.GetExtension(path), LithophaneProject.Extension, StringComparison.OrdinalIgnoreCase);
+
+    private static readonly FilePickerFileType ProjectFileType =
+        new("Lithophane project") { Patterns = new[] { "*" + LithophaneProject.Extension } };
+
+    private void MarkDirty()
+    {
+        if (_loadingProject || !IsInitialized || _dirty) return;
+        _dirty = true;
+        UpdateTitle();
+    }
+
+    private void UpdateTitle()
+    {
+        string name = _projectPath != null ? Path.GetFileName(_projectPath) : "Untitled";
+        Title = $"{name}{(_dirty ? " *" : "")} — Lithophane Maker";
+    }
+
+    private LithophaneProject BuildProject() => new()
+    {
+        Settings = ReadSettings(),
+        Layout = (ExportLayout)Math.Max(0, LayoutCombo.SelectedIndex),
+        LampPreset = LampPresetCombo.SelectedIndex,
+        Backlit = BacklitSwitch.IsChecked == true,
+        SelectedImage = ImageList.SelectedIndex,
+        Images = _images.Select(i => new ProjectImage { SourcePath = i.Path, Data = i.FileData, Rotation = i.Rotation })
+            .ToList(),
+    };
+
+    private async Task LoadProjectAsync(LithophaneProject project, string? path, bool dirty)
+    {
+        _loadingProject = true;
+        int failed = 0;
+        try
+        {
+            _images.Clear();
+            // The preset first: selecting it overwrites the lamp values, which ApplySettings then restores.
+            LampPresetCombo.SelectedIndex = Math.Clamp(project.LampPreset, 0, LampPresets.Length);
+            ApplySettings(project.Settings);
+            LayoutCombo.SelectedIndex = Math.Clamp((int)project.Layout, 0, LayoutCombo.ItemCount - 1);
+            BacklitSwitch.IsChecked = project.Backlit;
+
+            SetStatus("Loading project images…");
+            var decoded = await Task.Run(() => project.Images.Select(pi =>
+            {
+                try
+                {
+                    return (pi, ImageItem.Decode(pi.Data, Path.GetFileName(pi.SourcePath), pi.Rotation));
+                }
+                catch (Exception)
+                {
+                    return (pi, (GrayImage?)null);
+                }
+            }).ToList());
+
+            foreach (var (pi, image) in decoded)
+            {
+                if (image == null) failed++;
+                else _images.Add(new ImageItem(pi.SourcePath, pi.Data, image, pi.Rotation % 4));
+            }
+        }
+        finally
+        {
+            _loadingProject = false;
+        }
+
+        _projectPath = path;
+        _dirty = dirty;
+        UpdateTitle();
+        _resetCameraOnNextPreview = true;
+        if (_images.Count > 0)
+            ImageList.SelectedIndex = Math.Clamp(project.SelectedImage, 0, _images.Count - 1);
+        SetStatus(failed > 0
+            ? $"{failed} image(s) in the project could not be loaded."
+            : "Left-drag: rotate · Right-drag: pan · Wheel: zoom");
+    }
+
+    private async Task<bool> OpenProjectFileAsync(string path)
+    {
+        try
+        {
+            var project = await Task.Run(() => LithophaneProject.Load(path));
+            await LoadProjectAsync(project, path, dirty: false);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Could not open {Path.GetFileName(path)}: {ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>Saves the project, asking for a file name when needed. Returns false if cancelled or failed.</summary>
+    private async Task<bool> SaveProjectAsync(bool saveAs)
+    {
+        string? path = saveAs ? null : _projectPath;
+        if (path == null)
+        {
+            string suggested = _projectPath != null
+                ? Path.GetFileNameWithoutExtension(_projectPath)
+                : _images.Count > 0 ? Path.GetFileNameWithoutExtension(_images[0].Name) : "lithophane";
+            var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title = "Save project",
+                SuggestedFileName = suggested + LithophaneProject.Extension,
+                DefaultExtension = LithophaneProject.Extension.TrimStart('.'),
+                FileTypeChoices = new[] { ProjectFileType },
+            });
+            path = file?.TryGetLocalPath();
+            if (path == null) return false;
+            if (!IsProjectFile(path)) path += LithophaneProject.Extension;
+        }
+
+        try
+        {
+            var project = BuildProject();
+            await Task.Run(() => project.Save(path));
+            _projectPath = path;
+            _dirty = false;
+            UpdateTitle();
+            SetStatus($"Saved project {path}");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            SetStatus("Save failed: " + ex.Message);
+            return false;
+        }
+    }
+
+    /// <summary>Asks whether to save unsaved changes. Returns false if the user cancelled.</summary>
+    private async Task<bool> ConfirmDiscardChangesAsync()
+    {
+        if (!_dirty) return true;
+
+        string? choice = null;
+        var dialog = new Window
+        {
+            Title = "Unsaved changes",
+            SizeToContent = SizeToContent.WidthAndHeight,
+            CanResize = false,
+            ShowInTaskbar = false,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+        };
+        Button MakeButton(string text, string value, bool accent = false)
+        {
+            var b = new Button { Content = text, MinWidth = 90, HorizontalContentAlignment = HorizontalAlignment.Center };
+            if (accent) b.Classes.Add("accent");
+            b.Click += (_, _) =>
+            {
+                choice = value;
+                dialog.Close();
+            };
+            return b;
+        }
+        string name = _projectPath != null ? Path.GetFileName(_projectPath) : "the current project";
+        dialog.Content = new StackPanel
+        {
+            Margin = new Thickness(20),
+            Spacing = 16,
+            Children =
+            {
+                new TextBlock { Text = $"Save changes to {name}?" },
+                new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    Spacing = 8,
+                    HorizontalAlignment = HorizontalAlignment.Right,
+                    Children = { MakeButton("Save", "save", true), MakeButton("Don't save", "discard"), MakeButton("Cancel", "cancel") },
+                },
+            },
+        };
+        await dialog.ShowDialog(this);
+
+        return choice switch
+        {
+            "save" => await SaveProjectAsync(saveAs: false),
+            "discard" => true,
+            _ => false,
+        };
+    }
+
+    private async void OnNewClick(object? sender, RoutedEventArgs e)
+    {
+        if (await ConfirmDiscardChangesAsync())
+            await LoadProjectAsync(new LithophaneProject(), null, dirty: false);
+    }
+
+    private async void OnOpenClick(object? sender, RoutedEventArgs e)
+    {
+        if (!await ConfirmDiscardChangesAsync()) return;
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Open project",
+            FileTypeFilter = new[] { ProjectFileType, FilePickerFileTypes.All },
+        });
+        if (files.FirstOrDefault()?.TryGetLocalPath() is { } path)
+            await OpenProjectFileAsync(path);
+    }
+
+    private async void OnSaveClick(object? sender, RoutedEventArgs e) => await SaveProjectAsync(saveAs: false);
+
+    private async void OnSaveAsClick(object? sender, RoutedEventArgs e) => await SaveProjectAsync(saveAs: true);
+
+    protected override async void OnKeyDown(KeyEventArgs e)
+    {
+        base.OnKeyDown(e);
+        if (e.Handled || !e.KeyModifiers.HasFlag(KeyModifiers.Control)) return;
+        bool shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
+        switch (e.Key)
+        {
+            case Key.S:
+                e.Handled = true;
+                await SaveProjectAsync(saveAs: shift);
+                break;
+            case Key.O:
+                e.Handled = true;
+                OnOpenClick(this, e);
+                break;
+            case Key.N:
+                e.Handled = true;
+                OnNewClick(this, e);
+                break;
+        }
+    }
+
+    // ---------------------------------------------------------------- session (reopen where you left off)
+
+    private sealed record SessionState(string? ProjectPath, bool Modified);
+
+    private async void OnOpened(object? sender, EventArgs e)
+    {
+        // A project given on the command line (e.g. double-clicking a .lipo file) wins over the last session.
+        var argProject = _startupArgs.FirstOrDefault(a => IsProjectFile(a) && File.Exists(a));
+        if (argProject != null)
+        {
+            await OpenProjectFileAsync(argProject);
+        }
+        else
+        {
+            try
+            {
+                if (File.Exists(StateFile))
+                {
+                    var state = JsonSerializer.Deserialize<SessionState>(await File.ReadAllTextAsync(StateFile));
+                    string? path = state?.ProjectPath;
+                    bool projectExists = path != null && File.Exists(path);
+                    if (state is { Modified: false } && projectExists)
+                        await OpenProjectFileAsync(path!);
+                    else if (File.Exists(SessionFile))
+                        await LoadProjectAsync(LithophaneProject.Load(SessionFile), path, dirty: state?.Modified == true);
+                    else if (projectExists)
+                        await OpenProjectFileAsync(path!);
+                }
+            }
+            catch (Exception ex)
+            {
+                SetStatus("Could not restore the last session: " + ex.Message);
+            }
+        }
+
+        // Images given on the command line are added to whatever was restored.
+        var argImages = _startupArgs.Where(a => !IsProjectFile(a) && File.Exists(a)).ToList();
+        if (argImages.Count > 0)
+            await AddFilesAsync(argImages);
+    }
+
+    private void OnClosing(object? sender, WindowClosingEventArgs e)
+    {
+        if (_loadingProject) return;
+        try
+        {
+            Directory.CreateDirectory(StateDir);
+            // Unsaved work is kept in a session file so it comes back on the next start; a saved project is
+            // simply reopened from its own file.
+            if (_dirty || _projectPath == null)
+                BuildProject().Save(SessionFile);
+            else if (File.Exists(SessionFile))
+                File.Delete(SessionFile);
+            File.WriteAllText(StateFile, JsonSerializer.Serialize(new SessionState(_projectPath, _dirty)));
+        }
+        catch (Exception)
+        {
+            // Never block closing the app because the session could not be stored.
         }
     }
 

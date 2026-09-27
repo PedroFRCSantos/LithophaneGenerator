@@ -34,7 +34,8 @@
         <TextBlock x:Name="InfoText" Classes="hint" Text="Add an image to begin." />
         <Grid x:Name="LayoutRow" ColumnDefinitions="Auto,*" IsVisible="False">
           <TextBlock Classes="label" Text="Export as" />
-          <ComboBox x:Name="LayoutCombo" Grid.Column="1" HorizontalAlignment="Stretch" SelectedIndex="0">
+          <ComboBox x:Name="LayoutCombo" Grid.Column="1" HorizontalAlignment="Stretch" SelectedIndex="0"
+                    SelectionChanged="OnLayoutChanged">
             <ComboBoxItem Content="Separate files (lithophane + support)" />
             <ComboBoxItem Content="One file – parts side by side" />
             <ComboBoxItem Content="One file – assembled (single print)" />
@@ -52,6 +53,18 @@
 
       <ScrollViewer HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="12,12,16,12">
+
+          <!-- Project -->
+          <Grid ColumnDefinitions="*,4,*,4,*,4,*" Margin="0,0,0,10">
+            <Button Grid.Column="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                    Content="New" Click="OnNewClick" ToolTip.Tip="New project (Ctrl+N)" />
+            <Button Grid.Column="2" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                    Content="Open…" Click="OnOpenClick" ToolTip.Tip="Open a .lipo project (Ctrl+O)" />
+            <Button Grid.Column="4" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                    Content="Save" Click="OnSaveClick" ToolTip.Tip="Save project (Ctrl+S)" />
+            <Button Grid.Column="6" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                    Content="Save as…" Click="OnSaveAsClick" ToolTip.Tip="Save project as (Ctrl+Shift+S)" />
+          </Grid>
 
           <!-- Images -->
           <TextBlock Text="Images" FontWeight="SemiBold" FontSize="16" />
@@ -74,7 +87,7 @@
             </ListBox.ItemTemplate>
           </ListBox>
           <TextBlock Classes="hint" Margin="0,4,0,0"
-                     Text="Tip: you can also drag &amp; drop image files onto the window." />
+                     Text="Tip: you can also drag &amp; drop image files (or a .lipo project) onto the window." />
 
           <!-- Image settings -->
           <Expander Header="Image settings" IsExpanded="True">

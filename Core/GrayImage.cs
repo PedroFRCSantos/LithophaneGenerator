@@ -21,11 +21,14 @@ public sealed class GrayImage
 
     public float this[int x, int y] => Pixels[y * Width + x];
 
-    public static GrayImage Load(string path)
+    public static GrayImage Load(string path) => Load(File.ReadAllBytes(path), Path.GetFileName(path));
+
+    /// <summary>Decodes an image from the raw bytes of an image file.</summary>
+    public static GrayImage Load(byte[] fileData, string name)
     {
-        using var stream = File.OpenRead(path);
+        using var stream = new MemoryStream(fileData, writable: false);
         using var codec = SKCodec.Create(stream)
-            ?? throw new InvalidDataException($"Unsupported or corrupt image: {Path.GetFileName(path)}");
+            ?? throw new InvalidDataException($"Unsupported or corrupt image: {name}");
 
         var info = new SKImageInfo(codec.Info.Width, codec.Info.Height, SKColorType.Rgba8888, SKAlphaType.Unpremul);
         using var bitmap = new SKBitmap(info);

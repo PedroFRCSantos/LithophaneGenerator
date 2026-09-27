@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace LithophaneGUI.Core;
 
 public enum ShapeType
@@ -70,7 +72,7 @@ public sealed record LithophaneSettings
     public bool LampThroughHole { get; init; }
     public double CableDiameter { get; init; } = 6;
 
-    public bool IsClosed => Shape is ShapeType.Cylinder or ShapeType.Heart or ShapeType.Dome;
-    public bool HasLightSupport => LightSupport != LightSupportType.None;
-    public bool SupportsStand => Shape != ShapeType.Dome && !HasLightSupport;
+    [JsonIgnore] public bool IsClosed => Shape is ShapeType.Cylinder or ShapeType.Heart or ShapeType.Dome;
+    [JsonIgnore] public bool HasLightSupport => LightSupport != LightSupportType.None;
+    [JsonIgnore] public bool SupportsStand => Shape != ShapeType.Dome && !HasLightSupport;
 }
