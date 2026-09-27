@@ -1,0 +1,168 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:c="using:LithophaneGUI.Controls"
+        x:Class="LithophaneGUI.MainWindow"
+        Title="Lithophane Maker"
+        Width="1280" Height="820" MinWidth="900" MinHeight="600"
+        DragDrop.AllowDrop="True">
+
+  <Window.Styles>
+    <Style Selector="TextBlock.label">
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="Margin" Value="0,0,8,0" />
+    </Style>
+    <Style Selector="TextBlock.hint">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Opacity" Value="0.65" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style Selector="NumericUpDown">
+      <Setter Property="Margin" Value="0,2" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+    </Style>
+    <Style Selector="Expander">
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="Margin" Value="0,6,0,0" />
+    </Style>
+  </Window.Styles>
+
+  <Grid ColumnDefinitions="360,4,*">
+
+    <!-- Settings panel -->
+    <DockPanel Grid.Column="0">
+      <StackPanel DockPanel.Dock="Bottom" Margin="12" Spacing="6">
+        <TextBlock x:Name="InfoText" Classes="hint" Text="Add an image to begin." />
+        <Grid ColumnDefinitions="*,6,*">
+          <Button x:Name="ExportButton" Grid.Column="0" HorizontalAlignment="Stretch"
+                  HorizontalContentAlignment="Center" Classes="accent" Content="Export STL…"
+                  Click="OnExportClick" IsEnabled="False" />
+          <Button x:Name="ExportAllButton" Grid.Column="2" HorizontalAlignment="Stretch"
+                  HorizontalContentAlignment="Center" Content="Export all…"
+                  Click="OnExportAllClick" IsEnabled="False" />
+        </Grid>
+      </StackPanel>
+
+      <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="12,12,16,12">
+
+          <!-- Images -->
+          <TextBlock Text="Images" FontWeight="SemiBold" FontSize="16" />
+          <Grid ColumnDefinitions="*,6,Auto" Margin="0,6,0,4">
+            <Button Grid.Column="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                    Content="Add images…" Click="OnAddImagesClick" />
+            <Button x:Name="RemoveButton" Grid.Column="2" Content="Remove" Click="OnRemoveClick" IsEnabled="False" />
+          </Grid>
+          <ListBox x:Name="ImageList" Height="170" SelectionChanged="OnImageSelectionChanged">
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <Image Source="{Binding Thumbnail}" Width="48" Height="48" Stretch="Uniform" />
+                  <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" MaxWidth="230" />
+                    <TextBlock Text="{Binding SizeText}" Classes="hint" />
+                  </StackPanel>
+                </StackPanel>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+          <TextBlock Classes="hint" Margin="0,4,0,0"
+                     Text="Tip: you can also drag &amp; drop image files onto the window." />
+
+          <!-- Image settings -->
+          <Expander Header="Image settings" IsExpanded="True">
+            <StackPanel Spacing="4">
+              <StackPanel Orientation="Horizontal" Spacing="16">
+                <RadioButton x:Name="PositiveRadio" Content="Positive" GroupName="polarity" IsChecked="True"
+                             IsCheckedChanged="OnSettingChanged" />
+                <RadioButton x:Name="NegativeRadio" Content="Negative" GroupName="polarity"
+                             IsCheckedChanged="OnSettingChanged" />
+              </StackPanel>
+              <CheckBox x:Name="MirrorCheck" Content="Mirror (flip left/right)" IsCheckedChanged="OnSettingChanged" />
+              <CheckBox x:Name="FlipCheck" Content="Flip (upside down)" IsCheckedChanged="OnSettingChanged" />
+              <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto">
+                <TextBlock Classes="label" Grid.Row="0" Text="Repeat X" />
+                <NumericUpDown x:Name="RepeatXBox" Grid.Row="0" Grid.Column="1" Minimum="1" Maximum="20"
+                               Increment="1" Value="1" FormatString="0" ValueChanged="OnSettingChanged" />
+                <TextBlock Classes="label" Grid.Row="1" Text="Repeat Y" />
+                <NumericUpDown x:Name="RepeatYBox" Grid.Row="1" Grid.Column="1" Minimum="1" Maximum="20"
+                               Increment="1" Value="1" FormatString="0" ValueChanged="OnSettingChanged" />
+                <TextBlock Classes="label" Grid.Row="2" Text="Contrast (gamma)" />
+                <NumericUpDown x:Name="GammaBox" Grid.Row="2" Grid.Column="1" Minimum="0.2" Maximum="5"
+                               Increment="0.1" Value="1" FormatString="0.0" ValueChanged="OnSettingChanged" />
+              </Grid>
+              <Button x:Name="RotateButton" Content="Rotate image 90°" Click="OnRotateClick" IsEnabled="False" />
+            </StackPanel>
+          </Expander>
+
+          <!-- Model settings -->
+          <Expander Header="Model settings" IsExpanded="True">
+            <StackPanel Spacing="4">
+              <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
+                <TextBlock Classes="label" Grid.Row="0" Text="Shape" />
+                <ComboBox x:Name="ShapeCombo" Grid.Row="0" Grid.Column="1" HorizontalAlignment="Stretch"
+                          SelectedIndex="0" SelectionChanged="OnShapeChanged" Margin="0,2">
+                  <ComboBoxItem Content="Flat" />
+                  <ComboBoxItem Content="Outer curve" />
+                  <ComboBoxItem Content="Inner curve" />
+                  <ComboBoxItem Content="Cylinder (lamp)" />
+                  <ComboBoxItem Content="Heart" />
+                  <ComboBoxItem Content="Dome" />
+                </ComboBox>
+                <TextBlock Classes="label" Grid.Row="1" Text="Maximum size (mm)" />
+                <NumericUpDown x:Name="SizeBox" Grid.Row="1" Grid.Column="1" Minimum="5" Maximum="1000"
+                               Increment="5" Value="100" FormatString="0.#" ValueChanged="OnSettingChanged" />
+                <TextBlock Classes="label" Grid.Row="2" Text="Thickness (mm)" />
+                <NumericUpDown x:Name="ThicknessBox" Grid.Row="2" Grid.Column="1" Minimum="0.2" Maximum="50"
+                               Increment="0.1" Value="3" FormatString="0.0#" ValueChanged="OnSettingChanged" />
+                <TextBlock Classes="label" Grid.Row="3" Text="Thinnest layer (mm)" />
+                <NumericUpDown x:Name="MinThicknessBox" Grid.Row="3" Grid.Column="1" Minimum="0.1" Maximum="50"
+                               Increment="0.1" Value="0.8" FormatString="0.0#" ValueChanged="OnSettingChanged" />
+                <TextBlock Classes="label" Grid.Row="4" Text="Border (mm)" />
+                <NumericUpDown x:Name="BorderBox" Grid.Row="4" Grid.Column="1" Minimum="0" Maximum="100"
+                               Increment="0.5" Value="3" FormatString="0.0#" ValueChanged="OnSettingChanged" />
+                <TextBlock Classes="label" Grid.Row="5" Text="Resolution (points/mm)" />
+                <NumericUpDown x:Name="ResolutionBox" Grid.Row="5" Grid.Column="1" Minimum="0.5" Maximum="20"
+                               Increment="0.5" Value="5" FormatString="0.0#" ValueChanged="OnSettingChanged" />
+                <TextBlock x:Name="CurveLabel" Classes="label" Grid.Row="6" Text="Curve angle (°)" />
+                <NumericUpDown x:Name="CurveBox" Grid.Row="6" Grid.Column="1" Minimum="10" Maximum="350"
+                               Increment="10" Value="120" FormatString="0" ValueChanged="OnSettingChanged" />
+                <TextBlock x:Name="StandDepthLabel" Classes="label" Grid.Row="7" Text="Stand depth (mm)" />
+                <NumericUpDown x:Name="StandDepthBox" Grid.Row="7" Grid.Column="1" Minimum="0" Maximum="200"
+                               Increment="1" Value="0" FormatString="0.#" ValueChanged="OnSettingChanged" />
+                <TextBlock x:Name="StandHeightLabel" Classes="label" Grid.Row="8" Text="Stand height (mm)" />
+                <NumericUpDown x:Name="StandHeightBox" Grid.Row="8" Grid.Column="1" Minimum="0.5" Maximum="100"
+                               Increment="0.5" Value="3" FormatString="0.0#" ValueChanged="OnSettingChanged" />
+              </Grid>
+              <TextBlock Classes="hint"
+                         Text="Maximum size is the longest side of the image (for curved shapes, measured along the curve). Stand depth 0 = no stand." />
+            </StackPanel>
+          </Expander>
+
+        </StackPanel>
+      </ScrollViewer>
+    </DockPanel>
+
+    <GridSplitter Grid.Column="1" ResizeDirection="Columns" Background="#20808080" />
+
+    <!-- Preview -->
+    <DockPanel Grid.Column="2">
+      <Border DockPanel.Dock="Top" Padding="10,6">
+        <DockPanel>
+          <StackPanel Orientation="Horizontal" Spacing="12" DockPanel.Dock="Left">
+            <ToggleSwitch x:Name="BacklitSwitch" OnContent="Backlit view" OffContent="Backlit view"
+                          IsCheckedChanged="OnBacklitChanged" />
+            <Button Content="Reset view" Click="OnResetViewClick" />
+          </StackPanel>
+          <TextBlock x:Name="StatusText" Classes="hint" VerticalAlignment="Center" HorizontalAlignment="Right"
+                     Text="Left-drag: rotate · Right-drag: pan · Wheel: zoom" />
+        </DockPanel>
+      </Border>
+      <Panel>
+        <c:PreviewControl x:Name="Preview" />
+        <TextBlock x:Name="EmptyHint" Text="Add or drop an image to create a lithophane"
+                   HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#B0FFFFFF"
+                   FontSize="18" IsHitTestVisible="False" />
+      </Panel>
+    </DockPanel>
+  </Grid>
+</Window>
