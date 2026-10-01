@@ -3,6 +3,7 @@
         xmlns:c="using:LithophaneGUI.Controls"
         x:Class="LithophaneGUI.MainWindow"
         Title="Lithophane Maker"
+        Icon="/Assets/icon.ico"
         Width="1280" Height="820" MinWidth="900" MinHeight="600"
         DragDrop.AllowDrop="True">
 

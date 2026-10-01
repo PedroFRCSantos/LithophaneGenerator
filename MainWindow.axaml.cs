@@ -610,6 +610,7 @@ public partial class MainWindow : Window
         var dialog = new Window
         {
             Title = "Unsaved changes",
+            Icon = Icon,
             SizeToContent = SizeToContent.WidthAndHeight,
             CanResize = false,
             ShowInTaskbar = false,

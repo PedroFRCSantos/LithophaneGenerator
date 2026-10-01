@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Lithophane Maker
+GenericName=Lithophane Generator
+Comment=Turn photos into 3D-printable lithophane STL files
+Exec=lithophane-maker %F
+Icon=lithophane-maker
+Terminal=false
+Categories=Graphics;3DGraphics;
+Keywords=lithophane;3D printing;STL;lamp;
+MimeType=application/x-lithophane-project;image/png;image/jpeg;image/bmp;image/gif;image/webp;
+StartupWMClass=LithophaneGUI

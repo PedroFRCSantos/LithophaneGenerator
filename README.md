@@ -1,4 +1,8 @@
-# Lithophane Maker
+<p align="center">
+  <img src="docs/images/logo.png" alt="Lithophane Maker logo" width="128" height="128">
+</p>
+
+<h1 align="center">Lithophane Maker</h1>
 
 A cross-platform desktop app that turns photos into **3D-printable lithophanes**. It exports watertight
 STL files for flat panels, curved panels, cylinder lamps, hearts and domes. It can also generate a matching **light support**
@@ -100,6 +104,22 @@ dotnet publish -c Release -r win-x64 --self-contained -o publish/windows
 
 Run `publish/linux/LithophaneGUI` or `publish\windows\LithophaneGUI.exe`.
 
+### Install on Linux (application menu + `.lipo` file type)
+
+```bash
+dotnet publish -c Release -r linux-x64 --self-contained -o publish/linux
+packaging/linux/install.sh publish/linux
+```
+
+This installs the app for the current user, without root. It adds:
+
+- the app files in `~/.local/share/lithophane-maker`
+- a `lithophane-maker` command in `~/.local/bin`
+- a **Lithophane Maker** entry with its icon in the application menu
+- the `.lipo` file type, so double-clicking a project opens it
+
+To remove all of this, run `packaging/linux/install.sh --uninstall`.
+
 ### Command line
 
 ```bash
@@ -141,6 +161,8 @@ The [user guide](docs/USER_GUIDE.md) explains every setting and includes printin
 | `Rendering/SoftwareRenderer.cs` | Multi-threaded z-buffer preview renderer |
 | `Controls/PreviewControl.cs` | Interactive preview control |
 | `MainWindow.axaml(.cs)` | UI |
+| `Assets/` | Logo (`logo.svg`, plus `logo-small.svg` tuned for 16–32 px) and the app icon (`icon.ico`) |
+| `packaging/linux/` | `.desktop` entry, `.lipo` MIME type, icons and `install.sh` for Linux |
 
 The model stands upright (Z = up), which is the usual orientation for printing lithophanes.
 
