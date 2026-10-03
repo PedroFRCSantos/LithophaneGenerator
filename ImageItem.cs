@@ -4,6 +4,7 @@ using Avalonia;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using LithophaneGUI.Core;
+using LithophaneGUI.Localization;
 
 namespace LithophaneGUI;
 
@@ -39,7 +40,7 @@ public sealed class ImageItem : INotifyPropertyChanged
     /// <summary>Number of 90° rotations applied to the original image.</summary>
     public int Rotation { get; private set; }
     public string Name => System.IO.Path.GetFileName(Path);
-    public string SizeText => $"{_image.Width} × {_image.Height} px";
+    public string SizeText => Loc.Get("Images.Size", _image.Width, _image.Height);
     public Bitmap Thumbnail => _thumbnail;
 
     public GrayImage Image
@@ -54,6 +55,9 @@ public sealed class ImageItem : INotifyPropertyChanged
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SizeText)));
         }
     }
+
+    /// <summary>Re-reads the translated texts after a language change.</summary>
+    public void RefreshTexts() => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SizeText)));
 
     public void Rotate90()
     {

@@ -50,6 +50,9 @@ internet connection, and was inspired by [3dp.rocks/lithophane](https://3dp.rock
   from the actual light position and how much gets through the plastic (100 % infill).
 - **Built-in help**: hover over any setting to get a short explanation with a sketch of what the
   parameter means.
+- **10 languages**: English, 中文, हिन्दी, Español, العربية, Français, বাংলা, Português, Русский, اردو —
+  the interface, messages and help sketches follow your system language, with a switcher in the
+  toolbar (Arabic and Urdu lay the window out right-to-left).
 - **Watertight binary STL** export for the selected image, or for every image into a folder.
 - **Projects (`.lipo`)** store all settings and **embed the images**, so a project still opens after the
   original files are moved.
@@ -136,6 +139,19 @@ This installs the app for the current user, without root. It adds:
 
 To remove all of this, run `packaging/linux/install.sh --uninstall`.
 
+### Languages and fonts
+
+The app starts in your system language if it is one of the ten supported ones, otherwise in English;
+the combo box at the top right of the preview switches languages at any time and remembers your
+choice. Numbers keep the decimal separator of your system. Scripts other than Latin and Cyrillic
+(Chinese, Devanagari, Bengali, Arabic) use the system's fonts, so on a minimal Linux install add
+`fonts-noto` and `fonts-noto-cjk` (or your distribution's equivalent) if you see empty boxes instead
+of letters. Translations live in `Assets/Lang/*.json`; corrections are welcome.
+
+![Lithophane Maker in Portuguese, Chinese, Arabic (right-to-left) and Hindi](docs/images/languages.png)
+
+![Help tooltips in Chinese, Hindi, Arabic and Urdu](docs/images/help-tooltip-languages.png)
+
 ### Command line
 
 ```bash
@@ -176,7 +192,9 @@ The [user guide](docs/USER_GUIDE.md) explains every setting and includes printin
 | `Core/LithophaneProject.cs` | `.lipo` project file (JSON: settings + embedded images) |
 | `Rendering/SoftwareRenderer.cs` | Multi-threaded z-buffer preview renderer |
 | `Controls/PreviewControl.cs` | Interactive preview control |
-| `Controls/ParameterHelp.cs` | Help tooltips: topic texts and the code-drawn sketches |
+| `Controls/ParameterHelp.cs` | Help tooltips: topics and the code-drawn sketches |
+| `Localization/` | `Loc` (string tables, language detection, live switching) and the `{l:T Key}` XAML extension |
+| `Assets/Lang/*.json` | One flat key → text table per language (`en.json` is the reference and fallback) |
 | `MainWindow.axaml(.cs)` | UI |
 | `Assets/` | Logo (`logo.svg`, plus `logo-small.svg` tuned for 16–32 px) and the app icon (`icon.ico`) |
 | `packaging/linux/` | `.desktop` entry, `.lipo` MIME type, icons and `install.sh` for Linux |

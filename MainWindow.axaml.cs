@@ -1,6 +1,5 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
-using System.Text.Json;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -10,6 +9,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using LithophaneGUI.Core;
+using LithophaneGUI.Localization;
 using LithophaneGUI.Rendering;
 
 namespace LithophaneGUI;
@@ -30,12 +30,13 @@ public partial class MainWindow : Window
     private bool _busy;
     /// <summary>Parts of the current preview, kept so the light can be shown/hidden without regenerating.</summary>
     private ModelParts? _previewParts;
+    private GrayImage? _previewImage;
+    private LithophaneSettings? _previewSettings;
     private bool _syncingColors;
-
-    private static readonly string StateDir =
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "LithophaneGUI");
-    private static readonly string SessionFile = Path.Combine(StateDir, "session" + LithophaneProject.Extension);
-    private static readonly string StateFile = Path.Combine(StateDir, "state.json");
+    /// <summary>Set while the UI is being re-labelled after a language change, so handlers stay quiet.</summary>
+    private bool _relocalizing;
+    private string _statusKey = "Preview.Hint";
+    private object[] _statusArgs = Array.Empty<object>();
 
     private readonly string[] _startupArgs;
     private string? _projectPath;
@@ -57,7 +58,46 @@ public partial class MainWindow : Window
         UpdateShapeDependentControls();
         Opened += OnOpened;
         Closing += OnClosing;
-        UpdateTitle();
+
+        LanguageCombo.ItemsSource = Loc.Languages;
+        LanguageCombo.DisplayMemberBinding = new Avalonia.Data.Binding(nameof(LanguageInfo.NativeName));
+        Loc.Current.LanguageChanged += (_, _) => ApplyLanguage();
+        ApplyLanguage();
+    }
+
+    // ---------------------------------------------------------------- language
+
+    /// <summary>Re-labels everything that is not bound in XAML after the language changed.</summary>
+    private void ApplyLanguage()
+    {
+        _relocalizing = true;
+        try
+        {
+            FlowDirection = Loc.Current.IsRightToLeft ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
+            LanguageCombo.SelectedIndex = Loc.Languages.ToList().FindIndex(l => l.Code == Loc.Current.Language);
+            // A closed ComboBox keeps the text it copied when the item was selected; re-select to refresh it.
+            foreach (var combo in new[] { LayoutCombo, ShapeCombo, LightCombo, LampPresetCombo, LightPresetCombo, FilamentPresetCombo })
+            {
+                int i = combo.SelectedIndex;
+                combo.SelectedIndex = -1;
+                combo.SelectedIndex = i;
+            }
+            foreach (var item in _images) item.RefreshTexts();
+            if (PowerText != null) PowerText.Text = Loc.Get("Preview.Percent", PowerSlider.Value * 100);
+            UpdateTitle();
+            RefreshInfoText();
+            SetStatus(_statusKey, _statusArgs);
+        }
+        finally
+        {
+            _relocalizing = false;
+        }
+    }
+
+    private void OnLanguageSelected(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_relocalizing || LanguageCombo.SelectedItem is not LanguageInfo info) return;
+        Loc.Current.Override = info.Code;
     }
 
     private ImageItem? SelectedItem => ImageList?.SelectedItem as ImageItem;
@@ -139,10 +179,14 @@ public partial class MainWindow : Window
         SchedulePreview();
     }
 
-    private void OnLayoutChanged(object? sender, SelectionChangedEventArgs e) => MarkDirty();
+    private void OnLayoutChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (!_relocalizing) MarkDirty();
+    }
 
     private void OnShapeChanged(object? sender, SelectionChangedEventArgs e)
     {
+        if (_relocalizing) return;
         MarkDirty();
         UpdateShapeDependentControls();
         _resetCameraOnNextPreview = true;
@@ -151,6 +195,7 @@ public partial class MainWindow : Window
 
     private void OnLightChanged(object? sender, SelectionChangedEventArgs e)
     {
+        if (_relocalizing) return;
         MarkDirty();
         UpdateShapeDependentControls();
         _resetCameraOnNextPreview = true;
@@ -168,7 +213,7 @@ public partial class MainWindow : Window
 
     private void OnLampPresetChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (LampDiameterBox == null) return;
+        if (LampDiameterBox == null || _relocalizing) return;
         int i = LampPresetCombo.SelectedIndex;
         MarkDirty();
         if (i < 0 || i >= LampPresets.Length) return; // custom: keep values
@@ -212,11 +257,11 @@ public partial class MainWindow : Window
     {
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title = "Choose images",
+            Title = Loc.Get("File.ChooseImages"),
             AllowMultiple = true,
             FileTypeFilter = new[]
             {
-                new FilePickerFileType("Images") { Patterns = ImageExtensions.Select(x => "*" + x).ToArray() },
+                new FilePickerFileType(Loc.Get("File.Images")) { Patterns = ImageExtensions.Select(x => "*" + x).ToArray() },
                 FilePickerFileTypes.All,
             },
         });
@@ -250,7 +295,7 @@ public partial class MainWindow : Window
         {
             try
             {
-                SetStatus($"Loading {Path.GetFileName(path)}…");
+                SetStatus("Status.Loading", Path.GetFileName(path));
                 var (data, img) = await Task.Run(() =>
                 {
                     var bytes = File.ReadAllBytes(path);
@@ -262,14 +307,14 @@ public partial class MainWindow : Window
             }
             catch (Exception ex)
             {
-                SetStatus($"Could not load {Path.GetFileName(path)}: {ex.Message}");
+                SetStatus("Status.CouldNotLoad", Path.GetFileName(path), ex.Message);
             }
         }
 
         if (last != null)
         {
             ImageList.SelectedItem = last;
-            SetStatus("Left-drag: rotate · Right-drag: pan · Wheel: zoom");
+            SetStatus("Preview.Hint");
         }
     }
 
@@ -307,8 +352,9 @@ public partial class MainWindow : Window
         {
             _previewCts?.Cancel();
             _previewParts = null;
+            _previewImage = null;
             Preview.SetMesh(null, true);
-            InfoText.Text = "Add an image to begin.";
+            InfoText.Text = Loc.Get("Info.Empty");
         }
     }
 
@@ -362,18 +408,30 @@ public partial class MainWindow : Window
             if (cts.IsCancellationRequested) return;
 
             _previewParts = parts;
+            _previewImage = image;
+            _previewSettings = settings;
             Preview.SetMesh(mesh, _resetCameraOnNextPreview);
             _resetCameraOnNextPreview = false;
-            InfoText.Text = DescribeModel(LithophaneGenerator.Assemble(parts), image, settings) +
-                string.Concat(parts.Notes.Select(n => "\n⚠ " + n));
+            RefreshInfoText();
         }
         catch (OperationCanceledException)
         {
         }
         catch (Exception ex)
         {
-            InfoText.Text = "Preview failed: " + ex.Message;
+            InfoText.Text = Loc.Get("Info.PreviewFailed", ex.Message);
         }
+    }
+
+    private void RefreshInfoText()
+    {
+        if (_previewParts is not { } parts || _previewImage is not { } image || _previewSettings is not { } settings)
+        {
+            if (SelectedItem == null) InfoText.Text = Loc.Get("Info.Empty");
+            return;
+        }
+        InfoText.Text = DescribeModel(LithophaneGenerator.Assemble(parts), image, settings) +
+            string.Concat(parts.Notes.Select(n => "\n⚠ " + Loc.Get("Note." + n.Key, n.Value)));
     }
 
     private static string DescribeModel(Mesh previewMesh, GrayImage image, LithophaneSettings s)
@@ -386,8 +444,8 @@ public partial class MainWindow : Window
         double nodes = totalW * s.Resolution * totalH * s.Resolution;
         double triangles = nodes * 4;
         double mb = (84 + triangles * 50) / (1024.0 * 1024.0);
-        return $"Model: {size.X:0.#} × {size.Y:0.#} × {size.Z:0.#} mm\n" +
-               $"Lithophane: ~{triangles / 1e6:0.00} M triangles, ~{mb:0} MB STL";
+        return Loc.Get("Info.Model", size.X, size.Y, size.Z) + "\n" +
+               Loc.Get("Info.Lithophane", triangles / 1e6, mb);
     }
 
     private void OnBacklitChanged(object? sender, RoutedEventArgs e)
@@ -432,7 +490,7 @@ public partial class MainWindow : Window
 
     private void ApplyPreset(ComboBox combo, Color[] presets, ColorPicker picker)
     {
-        if (picker == null || _syncingColors) return;
+        if (picker == null || _syncingColors || _relocalizing) return;
         int i = combo.SelectedIndex;
         if (i < 0 || i >= presets.Length) { MarkDirty(); return; } // custom: keep the picked colour
         _syncingColors = true;
@@ -457,7 +515,7 @@ public partial class MainWindow : Window
 
     private void OnPowerChanged(object? sender, RangeBaseValueChangedEventArgs e)
     {
-        if (PowerText != null) PowerText.Text = $"{PowerSlider.Value * 100:0} %";
+        if (PowerText != null) PowerText.Text = Loc.Get("Preview.Percent", PowerSlider.Value * 100);
         ApplySimulation();
     }
 
@@ -486,10 +544,10 @@ public partial class MainWindow : Window
         if (SelectedItem is not { } item) return;
         var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
-            Title = "Save STL",
+            Title = Loc.Get("File.SaveStl"),
             SuggestedFileName = Path.GetFileNameWithoutExtension(item.Name) + ".stl",
             DefaultExtension = "stl",
-            FileTypeChoices = new[] { new FilePickerFileType("STL model") { Patterns = new[] { "*.stl" } } },
+            FileTypeChoices = new[] { new FilePickerFileType(Loc.Get("File.StlModel")) { Patterns = new[] { "*.stl" } } },
         });
         var path = file?.TryGetLocalPath();
         if (path == null) return;
@@ -500,7 +558,7 @@ public partial class MainWindow : Window
     {
         var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
         {
-            Title = "Choose a folder for the STL files",
+            Title = Loc.Get("File.ChooseFolder"),
         });
         var folder = folders.FirstOrDefault()?.TryGetLocalPath();
         if (folder == null) return;
@@ -523,8 +581,8 @@ public partial class MainWindow : Window
             for (int n = 0; n < jobs.Count; n++)
             {
                 var (item, path) = jobs[n];
-                string prefix = jobs.Count > 1 ? $"[{n + 1}/{jobs.Count}] " : "";
-                SetStatus($"{prefix}Generating {item.Name}…");
+                string prefix = jobs.Count > 1 ? Loc.Get("Status.Progress", n + 1, jobs.Count) : "";
+                SetStatus("Status.Generating", prefix, item.Name);
                 var image = item.Image;
                 var files = await Task.Run(() =>
                     LithophaneGenerator.Arrange(LithophaneGenerator.GenerateParts(image, settings), layout));
@@ -534,18 +592,21 @@ public partial class MainWindow : Window
                 foreach (var (suffix, mesh) in files)
                 {
                     string target = Path.Combine(dir, stem + suffix + ".stl");
-                    SetStatus($"{prefix}Writing {Path.GetFileName(target)} ({mesh.TriangleCount:N0} triangles)…");
+                    SetStatus("Status.Writing", prefix, Path.GetFileName(target), mesh.TriangleCount);
                     await Task.Run(() => StlWriter.WriteBinary(mesh, target, stem + suffix));
                     written.Add(target);
                 }
             }
-            SetStatus(written.Count == 1
-                ? $"Saved {written[0]} in {sw.Elapsed.TotalSeconds:0.0} s"
-                : $"Saved {written.Count} STL files ({string.Join(", ", written.Take(3).Select(Path.GetFileName))}{(written.Count > 3 ? ", …" : "")}) in {sw.Elapsed.TotalSeconds:0.0} s");
+            if (written.Count == 1)
+                SetStatus("Status.SavedOne", written[0], sw.Elapsed.TotalSeconds);
+            else
+                SetStatus("Status.SavedMany", written.Count,
+                    string.Join(", ", written.Take(3).Select(Path.GetFileName)) + (written.Count > 3 ? ", …" : ""),
+                    sw.Elapsed.TotalSeconds);
         }
         catch (Exception ex)
         {
-            SetStatus("Export failed: " + ex.Message);
+            SetStatus("Status.ExportFailed", ex.Message);
         }
         finally
         {
@@ -560,8 +621,8 @@ public partial class MainWindow : Window
     private static bool IsProjectFile(string path) =>
         string.Equals(Path.GetExtension(path), LithophaneProject.Extension, StringComparison.OrdinalIgnoreCase);
 
-    private static readonly FilePickerFileType ProjectFileType =
-        new("Lithophane project") { Patterns = new[] { "*" + LithophaneProject.Extension } };
+    private static FilePickerFileType ProjectFileType =>
+        new(Loc.Get("File.Project")) { Patterns = new[] { "*" + LithophaneProject.Extension } };
 
     private void MarkDirty()
     {
@@ -572,8 +633,8 @@ public partial class MainWindow : Window
 
     private void UpdateTitle()
     {
-        string name = _projectPath != null ? Path.GetFileName(_projectPath) : "Untitled";
-        Title = $"{name}{(_dirty ? " *" : "")} — Lithophane Maker";
+        string name = _projectPath != null ? Path.GetFileName(_projectPath) : Loc.Get("App.Untitled");
+        Title = Loc.Get("App.Title", name, _dirty ? " *" : "");
     }
 
     private LithophaneProject BuildProject() => new()
@@ -608,7 +669,7 @@ public partial class MainWindow : Window
             ShowLightCheck.IsChecked = project.ShowLight;
             LoadSimulation(project);
 
-            SetStatus("Loading project images…");
+            SetStatus("Status.LoadingProject");
             var decoded = await Task.Run(() => project.Images.Select(pi =>
             {
                 try
@@ -638,9 +699,8 @@ public partial class MainWindow : Window
         _resetCameraOnNextPreview = true;
         if (_images.Count > 0)
             ImageList.SelectedIndex = Math.Clamp(project.SelectedImage, 0, _images.Count - 1);
-        SetStatus(failed > 0
-            ? $"{failed} image(s) in the project could not be loaded."
-            : "Left-drag: rotate · Right-drag: pan · Wheel: zoom");
+        if (failed > 0) SetStatus("Status.ImagesFailed", failed);
+        else SetStatus("Preview.Hint");
     }
 
     private void LoadSimulation(LithophaneProject project)
@@ -671,7 +731,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            SetStatus($"Could not open {Path.GetFileName(path)}: {ex.Message}");
+            SetStatus("Status.CouldNotOpen", Path.GetFileName(path), ex.Message);
             return false;
         }
     }
@@ -684,10 +744,10 @@ public partial class MainWindow : Window
         {
             string suggested = _projectPath != null
                 ? Path.GetFileNameWithoutExtension(_projectPath)
-                : _images.Count > 0 ? Path.GetFileNameWithoutExtension(_images[0].Name) : "lithophane";
+                : _images.Count > 0 ? Path.GetFileNameWithoutExtension(_images[0].Name) : Loc.Get("File.DefaultName");
             var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
             {
-                Title = "Save project",
+                Title = Loc.Get("File.SaveProject"),
                 SuggestedFileName = suggested + LithophaneProject.Extension,
                 DefaultExtension = LithophaneProject.Extension.TrimStart('.'),
                 FileTypeChoices = new[] { ProjectFileType },
@@ -704,12 +764,12 @@ public partial class MainWindow : Window
             _projectPath = path;
             _dirty = false;
             UpdateTitle();
-            SetStatus($"Saved project {path}");
+            SetStatus("Status.SavedProject", path);
             return true;
         }
         catch (Exception ex)
         {
-            SetStatus("Save failed: " + ex.Message);
+            SetStatus("Status.SaveFailed", ex.Message);
             return false;
         }
     }
@@ -722,8 +782,9 @@ public partial class MainWindow : Window
         string? choice = null;
         var dialog = new Window
         {
-            Title = "Unsaved changes",
+            Title = Loc.Get("Dialog.UnsavedTitle"),
             Icon = Icon,
+            FlowDirection = FlowDirection, // not inherited across windows
             SizeToContent = SizeToContent.WidthAndHeight,
             CanResize = false,
             ShowInTaskbar = false,
@@ -740,20 +801,20 @@ public partial class MainWindow : Window
             };
             return b;
         }
-        string name = _projectPath != null ? Path.GetFileName(_projectPath) : "the current project";
+        string name = _projectPath != null ? Path.GetFileName(_projectPath) : Loc.Get("Dialog.CurrentProject");
         dialog.Content = new StackPanel
         {
             Margin = new Thickness(20),
             Spacing = 16,
             Children =
             {
-                new TextBlock { Text = $"Save changes to {name}?" },
+                new TextBlock { Text = Loc.Get("Dialog.SaveChanges", name) },
                 new StackPanel
                 {
                     Orientation = Orientation.Horizontal,
                     Spacing = 8,
                     HorizontalAlignment = HorizontalAlignment.Right,
-                    Children = { MakeButton("Save", "save", true), MakeButton("Don't save", "discard"), MakeButton("Cancel", "cancel") },
+                    Children = { MakeButton(Loc.Get("Dialog.Save"), "save", true), MakeButton(Loc.Get("Dialog.DontSave"), "discard"), MakeButton(Loc.Get("Dialog.Cancel"), "cancel") },
                 },
             },
         };
@@ -778,7 +839,7 @@ public partial class MainWindow : Window
         if (!await ConfirmDiscardChangesAsync()) return;
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title = "Open project",
+            Title = Loc.Get("File.OpenProject"),
             FileTypeFilter = new[] { ProjectFileType, FilePickerFileTypes.All },
         });
         if (files.FirstOrDefault()?.TryGetLocalPath() is { } path)
@@ -813,8 +874,6 @@ public partial class MainWindow : Window
 
     // ---------------------------------------------------------------- session (reopen where you left off)
 
-    private sealed record SessionState(string? ProjectPath, bool Modified);
-
     private async void OnOpened(object? sender, EventArgs e)
     {
         // A project given on the command line (e.g. double-clicking a .lipo file) wins over the last session.
@@ -827,22 +886,21 @@ public partial class MainWindow : Window
         {
             try
             {
-                if (File.Exists(StateFile))
+                if (AppState.Load() is { } state)
                 {
-                    var state = JsonSerializer.Deserialize<SessionState>(await File.ReadAllTextAsync(StateFile));
-                    string? path = state?.ProjectPath;
+                    string? path = state.ProjectPath;
                     bool projectExists = path != null && File.Exists(path);
-                    if (state is { Modified: false } && projectExists)
+                    if (!state.Modified && projectExists)
                         await OpenProjectFileAsync(path!);
-                    else if (File.Exists(SessionFile))
-                        await LoadProjectAsync(LithophaneProject.Load(SessionFile), path, dirty: state?.Modified == true);
+                    else if (File.Exists(AppState.SessionFile))
+                        await LoadProjectAsync(LithophaneProject.Load(AppState.SessionFile), path, dirty: state.Modified);
                     else if (projectExists)
                         await OpenProjectFileAsync(path!);
                 }
             }
             catch (Exception ex)
             {
-                SetStatus("Could not restore the last session: " + ex.Message);
+                SetStatus("Status.RestoreFailed", ex.Message);
             }
         }
 
@@ -857,14 +915,14 @@ public partial class MainWindow : Window
         if (_loadingProject) return;
         try
         {
-            Directory.CreateDirectory(StateDir);
+            Directory.CreateDirectory(AppState.Dir);
             // Unsaved work is kept in a session file so it comes back on the next start; a saved project is
             // simply reopened from its own file.
             if (_dirty || _projectPath == null)
-                BuildProject().Save(SessionFile);
-            else if (File.Exists(SessionFile))
-                File.Delete(SessionFile);
-            File.WriteAllText(StateFile, JsonSerializer.Serialize(new SessionState(_projectPath, _dirty)));
+                BuildProject().Save(AppState.SessionFile);
+            else if (File.Exists(AppState.SessionFile))
+                File.Delete(AppState.SessionFile);
+            AppState.Save(new SessionState(_projectPath, _dirty, Loc.Current.Override));
         }
         catch (Exception)
         {
@@ -872,5 +930,10 @@ public partial class MainWindow : Window
         }
     }
 
-    private void SetStatus(string text) => StatusText.Text = text;
+    private void SetStatus(string key, params object[] args)
+    {
+        _statusKey = key;
+        _statusArgs = args;
+        StatusText.Text = Loc.Get(key, args);
+    }
 }

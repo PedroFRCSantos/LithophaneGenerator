@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Styling;
+using LithophaneGUI.Localization;
 
 namespace LithophaneGUI.Controls;
 
@@ -19,17 +20,16 @@ public sealed class Help : AvaloniaObject
     {
         TopicProperty.Changed.AddClassHandler<Control>((control, e) =>
         {
-            if (e.NewValue is not string topic || !HelpTopics.All.TryGetValue(topic, out var entry)) return;
+            if (e.NewValue is not string topic || !HelpTopics.Topics.Contains(topic)) return;
+            var title = new TextBlock { FontWeight = FontWeight.SemiBold };
+            var text = new TextBlock { TextWrapping = TextWrapping.Wrap };
+            title.Bind(TextBlock.TextProperty, Loc.Bind($"Help.{topic}.Title"));
+            text.Bind(TextBlock.TextProperty, Loc.Bind($"Help.{topic}.Text"));
             ToolTip.SetTip(control, new StackPanel
             {
                 Spacing = 6,
                 MaxWidth = 260,
-                Children =
-                {
-                    new Sketch { Topic = topic, Width = 240, Height = 130 },
-                    new TextBlock { Text = entry.Title, FontWeight = FontWeight.SemiBold },
-                    new TextBlock { Text = entry.Text, TextWrapping = TextWrapping.Wrap },
-                },
+                Children = { new Sketch { Topic = topic, Width = 240, Height = 130 }, title, text },
             });
             ToolTip.SetShowDelay(control, 400);
         });
@@ -39,53 +39,16 @@ public sealed class Help : AvaloniaObject
     public static void SetTopic(Control c, string? value) => c.SetValue(TopicProperty, value);
 }
 
+/// <summary>The help topics; their title and text are the <c>Help.&lt;Topic&gt;.Title/Text</c> strings.</summary>
 public static class HelpTopics
 {
-    public static readonly IReadOnlyDictionary<string, (string Title, string Text)> All = new Dictionary<string, (string, string)>
+    public static readonly IReadOnlyList<string> Topics = new[]
     {
-        // Image settings
-        ["Positive"] = ("Positive", "Dark parts of the picture become thick, bright parts thin. The usual choice: the lit print looks like the photo."),
-        ["Negative"] = ("Negative", "Bright parts become thick and dark parts thin, so the lit print looks like a negative. Useful for white-on-black artwork."),
-        ["Mirror"] = ("Mirror", "Flips the picture left ↔ right. Use it when the lithophane will be viewed from the other side, e.g. from inside a lamp."),
-        ["Flip"] = ("Flip", "Turns the picture upside down."),
-        ["RepeatX"] = ("Repeat X", "Repeats the picture side by side this many times across the width. Handy for patterns around a lamp."),
-        ["RepeatY"] = ("Repeat Y", "Repeats the picture this many times from bottom to top."),
-        ["Gamma"] = ("Contrast (gamma)", "Curve applied to the brightness before it becomes thickness. 1 = unchanged. Above 1 darkens the mid-tones (more contrast in bright areas); below 1 brightens them."),
-        ["Rotate"] = ("Rotate image 90°", "Rotates the picture a quarter turn clockwise each click. The rotation is saved in the project."),
-
-        // Model settings
-        ["Shape"] = ("Shape", "The overall form. Flat and the two curves are panels. Cylinder, heart and dome wrap the picture all the way around and are meant to go over a light."),
-        ["MaxSize"] = ("Maximum size", "Length of the picture's longest side in mm, without the border. For curved and closed shapes it is measured along the curve: for a cylinder the width becomes the circumference."),
-        ["Thickness"] = ("Thickness", "Wall thickness of the darkest areas and of the border. Thicker gives darker darks and a sturdier print. 3 mm is typical."),
-        ["MinThickness"] = ("Thinnest layer", "Wall thickness of the brightest areas. Thinner gives brighter highlights but a fragile print; keep at least two nozzle widths (about 0.8 mm for a 0.4 mm nozzle)."),
-        ["Border"] = ("Border", "Solid frame around the picture at full thickness. It gives the print strength and is what sits in the slot of a light support. On closed shapes it is only added at the top and bottom."),
-        ["Resolution"] = ("Resolution", "Mesh points per mm in each direction. 5 points/mm (0.2 mm spacing) matches a 0.4 mm nozzle; more only makes the STL file larger."),
-        ["CurveAngle"] = ("Curve angle", "How far the outer or inner curve bends, in degrees. 90° is a gentle quarter circle, 180° a half circle."),
-        ["StandDepth"] = ("Stand depth", "Front-to-back depth of a foot under the bottom edge so the panel stands on its own. 0 = no stand. Not used together with a light support."),
-        ["StandHeight"] = ("Stand height", "Height of that foot."),
-
-        // Light support
-        ["LightSource"] = ("Light source", "Generates a base that holds the lithophane in a slot and houses the light: a channel or tray for an LED strip / string, or a round recess or hole for a lamp."),
-        ["SupportHeight"] = ("Base height", "Total height of the base. It is raised automatically if the cable groove would not fit underneath."),
-        ["SlotDepth"] = ("Slot depth", "How deep the lithophane sits in the base. Keep the border at least this tall so no part of the picture is hidden."),
-        ["SlotClearance"] = ("Slot clearance", "Extra gap on each side of the lithophane inside the slot. Printers vary: increase it if the print does not fit, reduce it if it wobbles."),
-        ["SupportWall"] = ("Wall thickness", "Thickness of the base walls, including the wall between the slot and the light."),
-        ["SupportMinDepth"] = ("Min. base depth", "Minimum front-to-back depth of the base so a panel cannot tip over. Only for flat and curved panels; closed shapes use their own footprint."),
-        ["CableDiameter"] = ("Cable hole", "Diameter of the hole for the power cable. It leads down to a groove under the base, so the base still sits flat with the cable in place."),
-        ["LedChannelWidth"] = ("LED channel width", "Width of the channel behind a panel that the LED strip lies in. Closed shapes get a tray over the whole inside instead."),
-        ["LedChannelDepth"] = ("LED channel depth", "Depth of the channel (or tray) below the top of the base. Deeper hides the LEDs better; it is limited by the base height."),
-        ["LampPreset"] = ("Lamp type", "Common light sources with their sizes. Tea light and LED puck sit in a recess; E14 / E27 sockets and the M10 tube go through the base. Custom keeps your own values."),
-        ["LampDiameter"] = ("Lamp hole diameter", "Diameter of the round recess or hole for the lamp, including a little play. For closed shapes it is reduced automatically if it would not fit inside the lithophane."),
-        ["LampDepth"] = ("Recess depth", "How deep the recess is, measured from the top of the base. Ignored for through-holes."),
-        ["LampThrough"] = ("Hole through the base", "Makes the hole go all the way through, for lamp sockets and threaded tubes that are fixed from below."),
-        ["ShowLight"] = ("Show the light source", "Draws the light itself in the 3D preview (LED strip, tea light or bulb) so you can see where it sits. It is never part of the exported STL."),
-        ["Layout"] = ("Export as", "How the two parts are written: separate STL files (each with its own print settings), one file with both parts side by side, or one file with the lithophane already standing in the base, printed as one piece."),
-
-        // Preview
-        ["Backlit"] = ("Backlit view", "Simulates light shining through the print instead of normal shading: thin areas glow, thick areas stay dark."),
-        ["LightColor"] = ("Light colour", "Colour of the light behind the print: warm or cool white, a colour, or any custom colour from the swatch."),
-        ["LightPower"] = ("Light power", "Brightness of the light. 100 % is a typical LED strip or lamp; raise it to see what a stronger light would do."),
-        ["Filament"] = ("Filament colour", "Colour of the filament you will print with, for a solid (100 % infill) print. Coloured filament blocks the other colours, so thick areas turn into a deep version of its colour."),
+        "Positive", "Negative", "Mirror", "Flip", "RepeatX", "RepeatY", "Gamma", "Rotate",
+        "Shape", "MaxSize", "Thickness", "MinThickness", "Border", "Resolution", "CurveAngle", "StandDepth", "StandHeight",
+        "LightSource", "SupportHeight", "SlotDepth", "SlotClearance", "SupportWall", "SupportMinDepth", "CableDiameter",
+        "LedChannelWidth", "LedChannelDepth", "LampPreset", "LampDiameter", "LampDepth", "LampThrough", "ShowLight", "Layout",
+        "Backlit", "LightColor", "LightPower", "Filament",
     };
 }
 
@@ -93,6 +56,31 @@ public static class HelpTopics
 public sealed class Sketch : Control
 {
     public string Topic { get; set; } = "";
+
+    /// <summary>Drawn by hand: never mirrored for right-to-left languages.</summary>
+    protected override bool BypassFlowDirectionPolicies => true;
+
+    /// <summary>Label keys used by the sketches (for the translation check).</summary>
+    public static readonly string[] LabelKeys =
+    {
+        "picture", L("bright"), L("dark"), L("light"), "thickness", "borderAndDarkest", "thinnestLayer", "brightest", "oneOverResolution",
+        "oneMeshPoint", "everyPoint2mm", "thinGlows", "thickStaysDark", "brightThick", "darkThick", "darkThin", "brightThin",
+        "border", "solidFrame", "maxSizeLongest", "borderNotIncl1", "borderNotIncl2", "repeatX3", "repeatY2", "brightnessAxis",
+        "thin", "thick", "mid", "shapeFlat", "shapeOuter", "shapeInner", "shapeCylinder", "shapeHeart", "shapeDome",
+        "viewedFromAbove", "facesOutwards", "curveAngle", "topView", "curveCaption", "sideView", "standDepth", "standHeight",
+        "back", L("front"), "ledStripBehind", "baseHeight", "slotDepth", "borderGeSlot", "gapEachSide", "wallThickness", "minBaseDepth",
+        "cableHole", "grooveUnder", "ledChannelWidth", "ledChannelDepth", "lampHole", "recessDepth", "socketBelow", "previewOnly",
+        "teaLightPuck", "sitInRecess", "goThrough", "twoFiles", "separate", "oneFile", "sideBySide", "onePiece", "assembled",
+        "blue", "red", "warmCool", "samePrint", "filamentColour", "litThin",
+    };
+
+    private static string L(string key) => Loc.Get("Sketch." + key);
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        InvalidateVisual(); // the language may have changed since the tooltip was last shown
+    }
 
     private IBrush _ink = Brushes.Black, _faint = Brushes.Gray, _accent = Brushes.Orange, _plastic = Brushes.LightGray,
         _basefill = Brushes.SteelBlue, _glow = Brushes.Gold;
@@ -127,7 +115,7 @@ public sealed class Sketch : Control
             case "Thickness": Section(ctx, "thickness"); break;
             case "MinThickness": Section(ctx, "min"); break;
             case "Resolution": Section(ctx, "resolution"); break;
-            case "Backlit": Section(ctx, "light"); break;
+            case "Backlit": Section(ctx, L("light")); break;
             case "CurveAngle": CurveAngle(ctx); break;
             case "StandDepth": Stand(ctx, true); break;
             case "StandHeight": Stand(ctx, false); break;
@@ -178,11 +166,22 @@ public sealed class Sketch : Control
         ctx.DrawGeometry(null, pen, Path(pts, false));
 
     private void Text(DrawingContext ctx, string text, double x, double y, IBrush? brush = null, double size = 10,
-        bool centre = false, bool right = false)
+        bool centre = false, bool right = false, double maxWidth = 0)
     {
-        var ft = new FormattedText(text, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, Typeface.Default, size, brush ?? _ink);
+        // Translations can be longer than the English labels: shrink to fit, then keep the text on the canvas.
+        double available = maxWidth > 0 ? maxWidth : centre ? 2 * Math.Min(x, 240 - x) : right ? x - 2 : 238 - x;
+        size *= Loc.Current.SketchFontScale;
+        var culture = Loc.Current.Culture;
+        FormattedText ft;
+        do
+        {
+            ft = new FormattedText(text, culture, FlowDirection.LeftToRight, Typeface.Default, size, brush ?? _ink);
+            if (ft.Width <= available || size <= 7) break;
+            size -= 0.5;
+        } while (true);
         if (centre) x -= ft.Width / 2;
         else if (right) x -= ft.Width;
+        x = Math.Clamp(x, 2, Math.Max(2, 238 - ft.Width));
         ctx.DrawText(ft, new Point(x, y));
     }
 
@@ -264,29 +263,29 @@ public sealed class Sketch : Control
             StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative), EndPoint = new RelativePoint(0, 1, RelativeUnit.Relative),
             GradientStops = { new GradientStop(Colors.White, 0), new GradientStop(Colors.Black, 1) },
         }, _thin, new Rect(44, imgTop, 18, imgBottom - imgTop));
-        Text(ctx, "picture", 53, imgBottom + 4, _faint, 9, centre: true);
-        Text(ctx, "bright", 40, imgTop - 4, _faint, 9, right: true);
-        Text(ctx, "dark", 40, imgBottom - 10, _faint, 9, right: true);
-        Text(ctx, "light", 12, 56, _faint, 9);
+        Text(ctx, L("picture"), 53, imgBottom + 4, _faint, 9, centre: true);
+        Text(ctx, L("bright"), 40, imgTop - 4, _faint, 9, right: true);
+        Text(ctx, L("dark"), 40, imgBottom - 10, _faint, 9, right: true);
+        Text(ctx, L("light"), 12, 56, _faint, 9);
         Arrow(ctx, 10, 70, 38, 70, _thin);
 
         switch (highlight)
         {
             case "thickness":
-                Dim(ctx, back, 110, back + tMax, 110, "Thickness", 0, 4);
-                Text(ctx, "border & darkest", back + tMax + 6, 104, _accent, 9);
+                Dim(ctx, back, 110, back + tMax, 110, L("thickness"), 0, 4);
+                Text(ctx, L("borderAndDarkest"), back + tMax + 6, 104, _accent, 9);
                 break;
             case "min":
                 Dim(ctx, back, 36, back + tMin, 36, "", 0, 0);
-                Text(ctx, "Thinnest layer", back + tMin + 8, 30, _accent, 9);
-                Text(ctx, "(brightest)", back + tMin + 8, 41, _accent, 9);
+                Text(ctx, L("thinnestLayer"), back + tMin + 8, 30, _accent, 9);
+                Text(ctx, L("brightest"), back + tMin + 8, 41, _accent, 9);
                 break;
             case "resolution":
                 for (double y = imgTop; y <= imgBottom; y += 8)
                     ctx.DrawEllipse(_accent, null, new Point(back + Thick(y), y), 1.6, 1.6);
-                Dim(ctx, back + Thick(52) + 10, 52, back + Thick(60) + 10, 60, "1 / resolution", 6, -4);
-                Text(ctx, "one mesh point", 150, 100, _accent, 9);
-                Text(ctx, "every 0.2 mm at 5/mm", 150, 111, _accent, 9);
+                Dim(ctx, back + Thick(52) + 10, 52, back + Thick(60) + 10, 60, L("oneOverResolution"), 6, -4);
+                Text(ctx, L("oneMeshPoint"), 150, 100, _accent, 9);
+                Text(ctx, L("everyPoint2mm"), 150, 111, _accent, 9);
                 break;
             case "light":
                 Sun(ctx, 20, 70);
@@ -298,8 +297,8 @@ public sealed class Sketch : Control
                     var p = new Pen(_glow, 0.6 + 2 * f, lineCap: PenLineCap.Round);
                     Arrow(ctx, back + Thick(y) + 2, y, back + Thick(y) + 10 + 36 * f, y, p);
                 }
-                Text(ctx, "thin glows", 150, 30, _accent, 9);
-                Text(ctx, "thick stays dark", 150, 96, _accent, 9);
+                Text(ctx, L("thinGlows"), 150, 30, _accent, 9);
+                Text(ctx, L("thickStaysDark"), 150, 96, _accent, 9);
                 _ = bright; _ = dim;
                 break;
         }
@@ -323,11 +322,11 @@ public sealed class Sketch : Control
             StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative), EndPoint = new RelativePoint(0, 1, RelativeUnit.Relative),
             GradientStops = { new GradientStop(Colors.White, 0), new GradientStop(Colors.Black, 1) },
         }, _thin, new Rect(44, imgTop, 18, imgBottom - imgTop));
-        Text(ctx, "picture", 53, imgBottom + 4, _faint, 9, centre: true);
-        Text(ctx, "bright", 40, imgTop - 4, _faint, 9, right: true);
-        Text(ctx, "dark", 40, imgBottom - 10, _faint, 9, right: true);
-        Text(ctx, negative ? "bright = thick" : "dark = thick", 150, negative ? 30 : 92, _accent, 9);
-        Text(ctx, negative ? "dark = thin" : "bright = thin", 150, negative ? 92 : 30, _accent, 9);
+        Text(ctx, L("picture"), 53, imgBottom + 4, _faint, 9, centre: true);
+        Text(ctx, L("bright"), 40, imgTop - 4, _faint, 9, right: true);
+        Text(ctx, L("dark"), 40, imgBottom - 10, _faint, 9, right: true);
+        Text(ctx, negative ? L("brightThick") : L("darkThick"), 150, negative ? 30 : 92, _accent, 9);
+        Text(ctx, negative ? L("darkThin") : L("brightThin"), 150, negative ? 92 : 30, _accent, 9);
         Arrow(ctx, 66, negative ? 36 : 94, back + (negative ? tMax : tMax) - 4, negative ? 36 : 94, _thin);
     }
 
@@ -366,17 +365,17 @@ public sealed class Sketch : Control
         {
             case "border":
                 Dim(ctx, 48, outer.Top, 48, inner.Top, "", 0, 0);
-                Text(ctx, "Border", 54, 10, _accent, 9);
+                Text(ctx, L("border"), 54, 10, _accent, 9);
                 Dim(ctx, inner.Right, 60, outer.Right, 60, "", 0, 0);
-                Text(ctx, "solid frame at full thickness, all round", 120, 112, _accent, 9, centre: true);
+                Text(ctx, L("solidFrame"), 120, 112, _accent, 9, centre: true);
                 break;
             case "size":
-                Dim(ctx, inner.Left, 113, inner.Right, 113, "Maximum size = longest side of the picture");
+                Dim(ctx, inner.Left, 113, inner.Right, 113, L("maxSizeLongest"));
                 Dim(ctx, 210, inner.Top, 210, inner.Bottom, "", 0, 0);
-                Text(ctx, "(border", 214, 52, _faint, 8); Text(ctx, "not incl.)", 214, 62, _faint, 8);
+                Text(ctx, L("borderNotIncl1"), 214, 52, _faint, 8); Text(ctx, L("borderNotIncl2"), 214, 62, _faint, 8);
                 break;
             case "repeat":
-                Text(ctx, repX > 1 ? "Repeat X = 3" : "Repeat Y = 2", 120, 113, _accent, 9, centre: true);
+                Text(ctx, repX > 1 ? L("repeatX3") : L("repeatY2"), 120, 113, _accent, 9, centre: true);
                 break;
         }
     }
@@ -386,9 +385,9 @@ public sealed class Sketch : Control
         var o = new Point(50, 110);
         Arrow(ctx, o.X, o.Y, o.X + 140, o.Y, _thin);
         Arrow(ctx, o.X, o.Y, o.X, o.Y - 95, _thin);
-        Text(ctx, "brightness in picture →", o.X + 70, 113, _faint, 9, centre: true);
-        Text(ctx, "thin", 46, 10, _faint, 9, right: true);
-        Text(ctx, "thick", 46, 100, _faint, 9, right: true);
+        Text(ctx, L("brightnessAxis"), o.X + 70, 113, _faint, 9, centre: true);
+        Text(ctx, L("thin"), 46, 10, _faint, 9, right: true);
+        Text(ctx, L("thick"), 46, 100, _faint, 9, right: true);
         foreach (var (g, pen, label, lx) in new[] { (0.5, _thin, "γ 0.5", 0.33), (1.0, _pen, "γ 1", 0.6), (2.2, _accentPen, "γ 2", 0.85) })
         {
             var pts = new List<Point>();
@@ -401,7 +400,7 @@ public sealed class Sketch : Control
 
     private void Shapes(DrawingContext ctx)
     {
-        string[] names = { "Flat", "Outer", "Inner", "Cylinder", "Heart", "Dome" };
+        string[] names = { L("shapeFlat"), L("shapeOuter"), L("shapeInner"), L("shapeCylinder"), L("shapeHeart"), L("shapeDome") };
         for (int k = 0; k < 6; k++)
         {
             double cx = 25 + k * 38, cy = 55;
@@ -417,10 +416,10 @@ public sealed class Sketch : Control
                     Line(ctx, cx - 15, cy + 10, cx + 15, cy + 10);
                     break;
             }
-            Text(ctx, names[k], cx, 80, _faint, 8, centre: true);
+            Text(ctx, names[k], cx, 80, _faint, 8, centre: true, maxWidth: 36);
         }
-        Text(ctx, "viewed from above (dome: from the side)", 120, 100, _faint, 9, centre: true);
-        Text(ctx, "picture faces outwards; cylinder, heart and dome go over a light", 120, 113, _accent, 8, centre: true);
+        Text(ctx, L("viewedFromAbove"), 120, 100, _faint, 9, centre: true);
+        Text(ctx, L("facesOutwards"), 120, 113, _accent, 8, centre: true);
     }
 
     private static IEnumerable<Point> Arc(double cx, double cy, double r, double fromDeg, double toDeg)
@@ -452,9 +451,9 @@ public sealed class Sketch : Control
         Line(ctx, cx, cy, cx + r * Math.Cos(a0 * Math.PI / 180), cy + r * Math.Sin(a0 * Math.PI / 180), _thin);
         Line(ctx, cx, cy, cx + r * Math.Cos(a1 * Math.PI / 180), cy + r * Math.Sin(a1 * Math.PI / 180), _thin);
         Polyline(ctx, _accentPen, Arc(cx, cy, 30, a0, a1));
-        Text(ctx, "Curve angle", cx, cy - 55, _accent, 10, centre: true);
-        Text(ctx, "top view", 12, 116, _faint, 9);
-        Text(ctx, "picture length stays the same; the angle sets how tight it bends", 120, 2, _faint, 8, centre: true);
+        Text(ctx, L("curveAngle"), cx, cy - 55, _accent, 10, centre: true);
+        Text(ctx, L("topView"), 12, 116, _faint, 9);
+        Text(ctx, L("curveCaption"), 120, 2, _faint, 8, centre: true);
     }
 
     private void Stand(DrawingContext ctx, bool depth)
@@ -462,9 +461,9 @@ public sealed class Sketch : Control
         ctx.DrawRectangle(_plastic, _pen, new Rect(112, 12, 9, 84));
         ctx.DrawRectangle(_plastic, _pen, new Rect(88, 96, 56, 14));
         Line(ctx, 30, 110, 210, 110, _thin);
-        Text(ctx, "side view", 12, 8, _faint, 9);
-        if (depth) Dim(ctx, 88, 122, 144, 122, "Stand depth", 0, -16);
-        else Dim(ctx, 156, 96, 156, 110, "Stand height", 0, 0);
+        Text(ctx, L("sideView"), 12, 8, _faint, 9);
+        if (depth) Dim(ctx, 88, 122, 144, 122, L("standDepth"), 0, -16);
+        else Dim(ctx, 156, 96, 156, 110, L("standHeight"), 0, 0);
     }
 
     /// <summary>Side cut through a light support with the lithophane in its slot. Light on the left (behind), viewer on the right.</summary>
@@ -498,33 +497,33 @@ public sealed class Sketch : Control
         }
         // The lithophane standing in the slot.
         ctx.DrawRectangle(_plastic, _pen, new Rect(150, 18, 8, slotBottom - 18));
-        Text(ctx, "back", left, 58, _faint, 9);
-        Text(ctx, "front", right, 58, _faint, 9, right: true);
+        Text(ctx, L("back"), left, 58, _faint, 9);
+        Text(ctx, L("front"), right, 58, _faint, 9, right: true);
         if (highlight != "depth") Line(ctx, 20, bottom, 220, bottom, _thin);
 
         switch (highlight)
         {
-            case "source": Text(ctx, "LED strip in a channel behind", 78, 30, _accent, 9, centre: true); Arrow(ctx, 96, 42, 96, 84, _accentPen); break;
-            case "height": Dim(ctx, 212, top, 212, bottom, "Base height", -2, 0); break;
-            case "slot": Dim(ctx, 172, top, 172, slotBottom, "Slot depth", 0, 0); Text(ctx, "border ≥ slot depth", 150, 4, _faint, 9); break;
+            case "source": Text(ctx, L("ledStripBehind"), 78, 30, _accent, 9, centre: true); Arrow(ctx, 96, 42, 96, 84, _accentPen); break;
+            case "height": Dim(ctx, 212, top, 212, bottom, L("baseHeight"), -2, 0); break;
+            case "slot": Dim(ctx, 172, top, 172, slotBottom, L("slotDepth"), 0, 0); Text(ctx, L("borderGeSlot"), 150, 4, _faint, 9); break;
             case "clearance":
                 Dim(ctx, slotL, 80, 150, 80, "", 0, 0); Dim(ctx, 158, 80, slotR, 80, "", 0, 0);
-                Text(ctx, "gap on each side", 154, 100, _accent, 9, centre: true);
+                Text(ctx, L("gapEachSide"), 154, 100, _accent, 9, centre: true);
                 Arrow(ctx, 154, 99, 149, 84, _accentPen); Arrow(ctx, 156, 99, 159, 84, _accentPen);
                 break;
-            case "wall": Dim(ctx, 122, 80, slotL, 80, "", 0, 0); Text(ctx, "Wall thickness", 134, 100, _accent, 9, centre: true); Arrow(ctx, 134, 99, 134, 84, _accentPen); break;
-            case "depth": Dim(ctx, left, 127, right, 127, "Min. base depth (front to back)", 0, -16); break;
+            case "wall": Dim(ctx, 122, 80, slotL, 80, "", 0, 0); Text(ctx, L("wallThickness"), 134, 100, _accent, 9, centre: true); Arrow(ctx, 134, 99, 134, 84, _accentPen); break;
+            case "depth": Dim(ctx, left, 127, right, 127, L("minBaseDepth"), 0, -16); break;
             case "cable":
-                Dim(ctx, 90, 104, 98, 104, "", 0, 0); Text(ctx, "Cable hole Ø", 94, 36, _accent, 9, centre: true);
+                Dim(ctx, 90, 104, 98, 104, "", 0, 0); Text(ctx, L("cableHole"), 94, 36, _accent, 9, centre: true);
                 Arrow(ctx, 94, 48, 94, 90, _accentPen);
-                Text(ctx, "groove under the base", 44, 122, _accent, 8);
+                Text(ctx, L("grooveUnder"), 44, 122, _accent, 8);
                 break;
-            case "ledwidth": Dim(ctx, 70, 64, 122, 64, "LED channel width", 0, -26); break;
-            case "leddepth": Dim(ctx, 132, top, 132, 95, ""); Text(ctx, "LED channel depth", 110, 40, _accent, 9, centre: true); Arrow(ctx, 126, 52, 131, 68, _accentPen); break;
-            case "lampdia": Dim(ctx, 60, 64, 134, 64, "Lamp hole Ø", 0, -26); break;
-            case "lampdepth": Dim(ctx, 140, top, 140, 100, ""); Text(ctx, "Recess depth", 110, 40, _accent, 9, centre: true); Arrow(ctx, 130, 52, 139, 68, _accentPen); break;
-            case "through": Arrow(ctx, 97, 20, 97, 36, _accentPen); Text(ctx, "socket fixed from below", 120, 2, _accent, 9, centre: true); break;
-            case "show": Text(ctx, "drawn in the preview only", 120, 30, _accent, 9, centre: true); Arrow(ctx, 110, 42, 98, 84, _accentPen); break;
+            case "ledwidth": Dim(ctx, 70, 64, 122, 64, L("ledChannelWidth"), 0, -26); break;
+            case "leddepth": Dim(ctx, 132, top, 132, 95, ""); Text(ctx, L("ledChannelDepth"), 110, 40, _accent, 9, centre: true); Arrow(ctx, 126, 52, 131, 68, _accentPen); break;
+            case "lampdia": Dim(ctx, 60, 64, 134, 64, L("lampHole"), 0, -26); break;
+            case "lampdepth": Dim(ctx, 140, top, 140, 100, ""); Text(ctx, L("recessDepth"), 110, 40, _accent, 9, centre: true); Arrow(ctx, 130, 52, 139, 68, _accentPen); break;
+            case "through": Arrow(ctx, 97, 20, 97, 36, _accentPen); Text(ctx, L("socketBelow"), 120, 2, _accent, 9, centre: true); break;
+            case "show": Text(ctx, L("previewOnly"), 120, 30, _accent, 9, centre: true); Arrow(ctx, 110, 42, 98, 84, _accentPen); break;
         }
     }
 
@@ -535,8 +534,8 @@ public sealed class Sketch : Control
         Poly(ctx, _plastic, null, new Point(36, 70), new Point(84, 70), new Point(84, 96), new Point(36, 96));
         ctx.DrawRectangle(_faint, _thin, new Rect(40, 82, 40, 14));
         ctx.DrawEllipse(_glow, null, new Point(60, 76), 3, 5);
-        Text(ctx, "Tea light / puck", 60, 20, _ink, 9, centre: true);
-        Text(ctx, "sit in a recess", 60, 32, _faint, 9, centre: true);
+        Text(ctx, L("teaLightPuck"), 60, 20, _ink, 9, centre: true);
+        Text(ctx, L("sitInRecess"), 60, 32, _faint, 9, centre: true);
         // Through: socket + bulb.
         ctx.DrawRectangle(_basefill, _pen, new Rect(134, 70, 92, 46));
         ctx.DrawRectangle(_plastic, null, new Rect(170, 70, 20, 46));
@@ -544,7 +543,7 @@ public sealed class Sketch : Control
         ctx.DrawRectangle(_faint, _thin, new Rect(175, 62, 10, 12));
         ctx.DrawEllipse(_glow, _thin, new Point(180, 48), 13, 13);
         Text(ctx, "E14 / E27 / M10", 180, 20, _ink, 9, centre: true);
-        Text(ctx, "go through the base", 180, 32, _faint, 9, centre: true);
+        Text(ctx, L("goThrough"), 180, 32, _faint, 9, centre: true);
     }
 
     private void Layouts(DrawingContext ctx)
@@ -553,16 +552,16 @@ public sealed class Sketch : Control
         void Box(double x, double y) => ctx.DrawRectangle(_basefill, _pen, new Rect(x, y, 40, 14));
         // Separate files
         Panel(30, 30); Box(50, 56);
-        Text(ctx, "2 files", 50, 76, _faint, 9, centre: true);
-        Text(ctx, "Separate", 50, 100, _ink, 9, centre: true);
+        Text(ctx, L("twoFiles"), 50, 76, _faint, 9, centre: true);
+        Text(ctx, L("separate"), 50, 100, _ink, 9, centre: true);
         // Side by side
         Panel(96, 36); Box(110, 62);
-        Text(ctx, "1 file", 120, 80, _faint, 9, centre: true);
-        Text(ctx, "Side by side", 120, 100, _ink, 9, centre: true);
+        Text(ctx, L("oneFile"), 120, 80, _faint, 9, centre: true);
+        Text(ctx, L("sideBySide"), 120, 100, _ink, 9, centre: true);
         // Assembled
         Box(170, 62); Panel(187, 26);
-        Text(ctx, "1 piece", 190, 80, _faint, 9, centre: true);
-        Text(ctx, "Assembled", 190, 100, _ink, 9, centre: true);
+        Text(ctx, L("onePiece"), 190, 80, _faint, 9, centre: true);
+        Text(ctx, L("assembled"), 190, 100, _ink, 9, centre: true);
         Line(ctx, 10, 118, 230, 118, _thin);
     }
 
@@ -584,13 +583,13 @@ public sealed class Sketch : Control
         {
             case "color":
                 var cols = new[] { "#FFA957", "#FFD1A3", "#FFFEFA", "#3060FF", "#FF2A14" };
-                var names = new[] { "2700 K", "4000 K", "6500 K", "blue", "red" };
+                var names = new[] { "2700 K", "4000 K", "6500 K", L("blue"), L("red") };
                 for (int k = 0; k < cols.Length; k++)
                 {
                     Bulb(28 + k * 46, 58, 12, new SolidColorBrush(Color.Parse(cols[k])), 6);
                     Text(ctx, names[k], 28 + k * 46, 92, _faint, 9, centre: true);
                 }
-                Text(ctx, "warm ← → cool, or any colour", 120, 112, _accent, 9, centre: true);
+                Text(ctx, L("warmCool"), 120, 112, _accent, 9, centre: true);
                 break;
             case "power":
                 for (int k = 0; k < 3; k++)
@@ -598,21 +597,21 @@ public sealed class Sketch : Control
                     Bulb(50 + k * 70, 62, 12, _glow, 4 + k * 9);
                     Text(ctx, new[] { "50 %", "100 %", "250 %" }[k], 50 + k * 70, 98, _faint, 9, centre: true);
                 }
-                Text(ctx, "same print, stronger light = brighter picture", 120, 114, _accent, 9, centre: true);
+                Text(ctx, L("samePrint"), 120, 114, _accent, 9, centre: true);
                 break;
             case "filament":
                 // A spool with the filament colour and three thickness samples.
                 ctx.DrawEllipse(_faint, _pen, new Point(50, 60), 30, 30);
                 ctx.DrawEllipse(new SolidColorBrush(Color.Parse("#E03030")), _thin, new Point(50, 60), 22, 22);
                 ctx.DrawEllipse(_plastic, _thin, new Point(50, 60), 7, 7);
-                Text(ctx, "filament colour", 50, 98, _faint, 9, centre: true);
+                Text(ctx, L("filamentColour"), 50, 98, _faint, 9, centre: true);
                 var reds = new[] { "#FF9080", "#D03020", "#601008" };
                 for (int k = 0; k < 3; k++)
                 {
                     ctx.DrawRectangle(new SolidColorBrush(Color.Parse(reds[k])), _thin, new Rect(110 + k * 38, 72 - k * 10, 26, 10 + k * 20));
-                    Text(ctx, new[] { "thin", "mid", "thick" }[k], 123 + k * 38, 108, _faint, 9, centre: true);
+                    Text(ctx, new[] { L("thin"), L("mid"), L("thick") }[k], 123 + k * 38, 108, _faint, 9, centre: true);
                 }
-                Text(ctx, "lit: thin glows, thick is deep colour", 160, 30, _accent, 9, centre: true);
+                Text(ctx, L("litThin"), 160, 30, _accent, 9, centre: true);
                 break;
         }
     }

@@ -1,8 +1,8 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:c="using:LithophaneGUI.Controls"
+        xmlns:l="using:LithophaneGUI.Localization"
         x:Class="LithophaneGUI.MainWindow"
-        Title="Lithophane Maker"
         Icon="/Assets/icon.ico"
         Width="1280" Height="820" MinWidth="900" MinHeight="600"
         DragDrop.AllowDrop="True">
@@ -11,6 +11,7 @@
     <Style Selector="TextBlock.label">
       <Setter Property="VerticalAlignment" Value="Center" />
       <Setter Property="Background" Value="Transparent" />
+      <Setter Property="TextWrapping" Value="Wrap" />
       <Setter Property="Margin" Value="0,0,8,0" />
     </Style>
     <Style Selector="TextBlock.hint">
@@ -20,6 +21,7 @@
     </Style>
     <Style Selector="NumericUpDown">
       <Setter Property="Margin" Value="0,2" />
+      <Setter Property="VerticalAlignment" Value="Center" />
       <Setter Property="HorizontalAlignment" Value="Stretch" />
     </Style>
     <Style Selector="Expander">
@@ -28,27 +30,27 @@
     </Style>
   </Window.Styles>
 
-  <Grid ColumnDefinitions="360,4,*">
+  <Grid ColumnDefinitions="380,4,*">
 
     <!-- Settings panel -->
     <DockPanel Grid.Column="0">
       <StackPanel DockPanel.Dock="Bottom" Margin="12" Spacing="6">
-        <TextBlock x:Name="InfoText" Classes="hint" Text="Add an image to begin." />
+        <TextBlock x:Name="InfoText" Classes="hint" Text="{l:T Info.Empty}" />
         <Grid x:Name="LayoutRow" ColumnDefinitions="Auto,*" IsVisible="False">
-          <TextBlock Classes="label" Text="Export as" c:Help.Topic="Layout" />
+          <TextBlock Classes="label" Text="{l:T Export.As}" c:Help.Topic="Layout" />
           <ComboBox x:Name="LayoutCombo" c:Help.Topic="Layout" Grid.Column="1" HorizontalAlignment="Stretch" SelectedIndex="0"
                     SelectionChanged="OnLayoutChanged">
-            <ComboBoxItem Content="Separate files (lithophane + support)" />
-            <ComboBoxItem Content="One file – parts side by side" />
-            <ComboBoxItem Content="One file – assembled (single print)" />
+            <ComboBoxItem Content="{l:T Layout.Separate}" />
+            <ComboBoxItem Content="{l:T Layout.SideBySide}" />
+            <ComboBoxItem Content="{l:T Layout.Assembled}" />
           </ComboBox>
         </Grid>
         <Grid ColumnDefinitions="*,6,*">
           <Button x:Name="ExportButton" Grid.Column="0" HorizontalAlignment="Stretch"
-                  HorizontalContentAlignment="Center" Classes="accent" Content="Export STL…"
+                  HorizontalContentAlignment="Center" Classes="accent" Content="{l:T Export.Stl}"
                   Click="OnExportClick" IsEnabled="False" />
           <Button x:Name="ExportAllButton" Grid.Column="2" HorizontalAlignment="Stretch"
-                  HorizontalContentAlignment="Center" Content="Export all…"
+                  HorizontalContentAlignment="Center" Content="{l:T Export.All}"
                   Click="OnExportAllClick" IsEnabled="False" />
         </Grid>
       </StackPanel>
@@ -57,23 +59,26 @@
         <StackPanel Margin="12,12,16,12">
 
           <!-- Project -->
-          <Grid ColumnDefinitions="*,4,*,4,*,4,*" Margin="0,0,0,10">
-            <Button Grid.Column="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
-                    Content="New" Click="OnNewClick" ToolTip.Tip="New project (Ctrl+N)" />
-            <Button Grid.Column="2" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
-                    Content="Open…" Click="OnOpenClick" ToolTip.Tip="Open a .lipo project (Ctrl+O)" />
-            <Button Grid.Column="4" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
-                    Content="Save" Click="OnSaveClick" ToolTip.Tip="Save project (Ctrl+S)" />
-            <Button Grid.Column="6" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
-                    Content="Save as…" Click="OnSaveAsClick" ToolTip.Tip="Save project as (Ctrl+Shift+S)" />
-          </Grid>
+          <WrapPanel Margin="0,0,0,10">
+            <WrapPanel.Styles>
+              <Style Selector="Button">
+                <Setter Property="MinWidth" Value="72" />
+                <Setter Property="Margin" Value="0,0,4,4" />
+                <Setter Property="HorizontalContentAlignment" Value="Center" />
+              </Style>
+            </WrapPanel.Styles>
+            <Button Content="{l:T Project.New}" Click="OnNewClick" ToolTip.Tip="{l:T Project.NewTip}" />
+            <Button Content="{l:T Project.Open}" Click="OnOpenClick" ToolTip.Tip="{l:T Project.OpenTip}" />
+            <Button Content="{l:T Project.Save}" Click="OnSaveClick" ToolTip.Tip="{l:T Project.SaveTip}" />
+            <Button Content="{l:T Project.SaveAs}" Click="OnSaveAsClick" ToolTip.Tip="{l:T Project.SaveAsTip}" />
+          </WrapPanel>
 
           <!-- Images -->
-          <TextBlock Text="Images" FontWeight="SemiBold" FontSize="16" />
+          <TextBlock Text="{l:T Images.Header}" FontWeight="SemiBold" FontSize="16" />
           <Grid ColumnDefinitions="*,6,Auto" Margin="0,6,0,4">
             <Button Grid.Column="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
-                    Content="Add images…" Click="OnAddImagesClick" />
-            <Button x:Name="RemoveButton" Grid.Column="2" Content="Remove" Click="OnRemoveClick" IsEnabled="False" />
+                    Content="{l:T Images.Add}" Click="OnAddImagesClick" />
+            <Button x:Name="RemoveButton" Grid.Column="2" Content="{l:T Images.Remove}" Click="OnRemoveClick" IsEnabled="False" />
           </Grid>
           <ListBox x:Name="ImageList" Height="170" SelectionChanged="OnImageSelectionChanged">
             <ListBox.ItemTemplate>
@@ -89,144 +94,148 @@
             </ListBox.ItemTemplate>
           </ListBox>
           <TextBlock Classes="hint" Margin="0,4,0,0"
-                     Text="Tip: you can also drag &amp; drop image files (or a .lipo project) onto the window." />
+                     Text="{l:T Images.Tip}" />
 
           <!-- Image settings -->
-          <Expander Header="Image settings" IsExpanded="True">
+          <Expander Header="{l:T ImageSettings.Header}" IsExpanded="True">
             <StackPanel Spacing="4">
               <StackPanel Orientation="Horizontal" Spacing="16">
-                <RadioButton x:Name="PositiveRadio" c:Help.Topic="Positive" Content="Positive" GroupName="polarity" IsChecked="True"
+                <RadioButton x:Name="PositiveRadio" c:Help.Topic="Positive" Content="{l:T ImageSettings.Positive}" GroupName="polarity" IsChecked="True"
                              IsCheckedChanged="OnSettingChanged" />
-                <RadioButton x:Name="NegativeRadio" c:Help.Topic="Negative" Content="Negative" GroupName="polarity"
+                <RadioButton x:Name="NegativeRadio" c:Help.Topic="Negative" Content="{l:T ImageSettings.Negative}" GroupName="polarity"
                              IsCheckedChanged="OnSettingChanged" />
               </StackPanel>
-              <CheckBox x:Name="MirrorCheck" c:Help.Topic="Mirror" Content="Mirror (flip left/right)" IsCheckedChanged="OnSettingChanged" />
-              <CheckBox x:Name="FlipCheck" c:Help.Topic="Flip" Content="Flip (upside down)" IsCheckedChanged="OnSettingChanged" />
+              <CheckBox x:Name="MirrorCheck" c:Help.Topic="Mirror" Content="{l:T ImageSettings.Mirror}" IsCheckedChanged="OnSettingChanged" />
+              <CheckBox x:Name="FlipCheck" c:Help.Topic="Flip" Content="{l:T ImageSettings.Flip}" IsCheckedChanged="OnSettingChanged" />
               <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto">
-                <TextBlock Classes="label" Grid.Row="0" Text="Repeat X" c:Help.Topic="RepeatX" />
+                <TextBlock Classes="label" Grid.Row="0" Text="{l:T ImageSettings.RepeatX}" c:Help.Topic="RepeatX" />
                 <NumericUpDown x:Name="RepeatXBox" c:Help.Topic="RepeatX" Grid.Row="0" Grid.Column="1" Minimum="1" Maximum="20"
                                Increment="1" Value="1" FormatString="0" ValueChanged="OnSettingChanged" />
-                <TextBlock Classes="label" Grid.Row="1" Text="Repeat Y" c:Help.Topic="RepeatY" />
+                <TextBlock Classes="label" Grid.Row="1" Text="{l:T ImageSettings.RepeatY}" c:Help.Topic="RepeatY" />
                 <NumericUpDown x:Name="RepeatYBox" c:Help.Topic="RepeatY" Grid.Row="1" Grid.Column="1" Minimum="1" Maximum="20"
                                Increment="1" Value="1" FormatString="0" ValueChanged="OnSettingChanged" />
-                <TextBlock Classes="label" Grid.Row="2" Text="Contrast (gamma)" c:Help.Topic="Gamma" />
+                <TextBlock Classes="label" Grid.Row="2" Text="{l:T ImageSettings.Gamma}" c:Help.Topic="Gamma" />
                 <NumericUpDown x:Name="GammaBox" c:Help.Topic="Gamma" Grid.Row="2" Grid.Column="1" Minimum="0.2" Maximum="5"
                                Increment="0.1" Value="1" FormatString="0.0" ValueChanged="OnSettingChanged" />
               </Grid>
-              <Button x:Name="RotateButton" c:Help.Topic="Rotate" Content="Rotate image 90°" Click="OnRotateClick" IsEnabled="False" />
+              <Button x:Name="RotateButton" c:Help.Topic="Rotate" Content="{l:T ImageSettings.Rotate}" Click="OnRotateClick" IsEnabled="False" />
             </StackPanel>
           </Expander>
 
           <!-- Model settings -->
-          <Expander Header="Model settings" IsExpanded="True">
+          <Expander Header="{l:T Model.Header}" IsExpanded="True">
             <StackPanel Spacing="4">
               <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
-                <TextBlock Classes="label" Grid.Row="0" Text="Shape" c:Help.Topic="Shape" />
-                <ComboBox x:Name="ShapeCombo" c:Help.Topic="Shape" Grid.Row="0" Grid.Column="1" HorizontalAlignment="Stretch"
+                <TextBlock Classes="label" Grid.Row="0" Text="{l:T Model.Shape}" c:Help.Topic="Shape" />
+                <ComboBox x:Name="ShapeCombo" VerticalAlignment="Center" c:Help.Topic="Shape" Grid.Row="0" Grid.Column="1" HorizontalAlignment="Stretch"
                           SelectedIndex="0" SelectionChanged="OnShapeChanged" Margin="0,2">
-                  <ComboBoxItem Content="Flat" />
-                  <ComboBoxItem Content="Outer curve" />
-                  <ComboBoxItem Content="Inner curve" />
-                  <ComboBoxItem Content="Cylinder (lamp)" />
-                  <ComboBoxItem Content="Heart" />
-                  <ComboBoxItem Content="Dome" />
+                  <ComboBoxItem Content="{l:T Shape.Flat}" />
+                  <ComboBoxItem Content="{l:T Shape.OuterCurve}" />
+                  <ComboBoxItem Content="{l:T Shape.InnerCurve}" />
+                  <ComboBoxItem Content="{l:T Shape.Cylinder}" />
+                  <ComboBoxItem Content="{l:T Shape.Heart}" />
+                  <ComboBoxItem Content="{l:T Shape.Dome}" />
                 </ComboBox>
-                <TextBlock Classes="label" Grid.Row="1" Text="Maximum size (mm)" c:Help.Topic="MaxSize" />
+                <TextBlock Classes="label" Grid.Row="1" Text="{l:T Model.MaxSize}" c:Help.Topic="MaxSize" />
                 <NumericUpDown x:Name="SizeBox" c:Help.Topic="MaxSize" Grid.Row="1" Grid.Column="1" Minimum="5" Maximum="1000"
                                Increment="5" Value="100" FormatString="0.#" ValueChanged="OnSettingChanged" />
-                <TextBlock Classes="label" Grid.Row="2" Text="Thickness (mm)" c:Help.Topic="Thickness" />
+                <TextBlock Classes="label" Grid.Row="2" Text="{l:T Model.Thickness}" c:Help.Topic="Thickness" />
                 <NumericUpDown x:Name="ThicknessBox" c:Help.Topic="Thickness" Grid.Row="2" Grid.Column="1" Minimum="0.2" Maximum="50"
                                Increment="0.1" Value="3" FormatString="0.0#" ValueChanged="OnSettingChanged" />
-                <TextBlock Classes="label" Grid.Row="3" Text="Thinnest layer (mm)" c:Help.Topic="MinThickness" />
+                <TextBlock Classes="label" Grid.Row="3" Text="{l:T Model.MinThickness}" c:Help.Topic="MinThickness" />
                 <NumericUpDown x:Name="MinThicknessBox" c:Help.Topic="MinThickness" Grid.Row="3" Grid.Column="1" Minimum="0.1" Maximum="50"
                                Increment="0.1" Value="0.8" FormatString="0.0#" ValueChanged="OnSettingChanged" />
-                <TextBlock Classes="label" Grid.Row="4" Text="Border (mm)" c:Help.Topic="Border" />
+                <TextBlock Classes="label" Grid.Row="4" Text="{l:T Model.Border}" c:Help.Topic="Border" />
                 <NumericUpDown x:Name="BorderBox" c:Help.Topic="Border" Grid.Row="4" Grid.Column="1" Minimum="0" Maximum="100"
                                Increment="0.5" Value="3" FormatString="0.0#" ValueChanged="OnSettingChanged" />
-                <TextBlock Classes="label" Grid.Row="5" Text="Resolution (points/mm)" c:Help.Topic="Resolution" />
+                <TextBlock Classes="label" Grid.Row="5" Text="{l:T Model.Resolution}" c:Help.Topic="Resolution" />
                 <NumericUpDown x:Name="ResolutionBox" c:Help.Topic="Resolution" Grid.Row="5" Grid.Column="1" Minimum="0.5" Maximum="20"
                                Increment="0.5" Value="5" FormatString="0.0#" ValueChanged="OnSettingChanged" />
-                <TextBlock x:Name="CurveLabel" Classes="label" Grid.Row="6" Text="Curve angle (°)" c:Help.Topic="CurveAngle" />
+                <TextBlock x:Name="CurveLabel" Classes="label" Grid.Row="6" Text="{l:T Model.CurveAngle}" c:Help.Topic="CurveAngle" />
                 <NumericUpDown x:Name="CurveBox" c:Help.Topic="CurveAngle" Grid.Row="6" Grid.Column="1" Minimum="10" Maximum="350"
                                Increment="10" Value="120" FormatString="0" ValueChanged="OnSettingChanged" />
-                <TextBlock x:Name="StandDepthLabel" Classes="label" Grid.Row="7" Text="Stand depth (mm)" c:Help.Topic="StandDepth" />
+                <TextBlock x:Name="StandDepthLabel" Classes="label" Grid.Row="7" Text="{l:T Model.StandDepth}" c:Help.Topic="StandDepth" />
                 <NumericUpDown x:Name="StandDepthBox" c:Help.Topic="StandDepth" Grid.Row="7" Grid.Column="1" Minimum="0" Maximum="200"
                                Increment="1" Value="0" FormatString="0.#" ValueChanged="OnSettingChanged" />
-                <TextBlock x:Name="StandHeightLabel" Classes="label" Grid.Row="8" Text="Stand height (mm)" c:Help.Topic="StandHeight" />
+                <TextBlock x:Name="StandHeightLabel" Classes="label" Grid.Row="8" Text="{l:T Model.StandHeight}" c:Help.Topic="StandHeight" />
                 <NumericUpDown x:Name="StandHeightBox" c:Help.Topic="StandHeight" Grid.Row="8" Grid.Column="1" Minimum="0.5" Maximum="100"
                                Increment="0.5" Value="3" FormatString="0.0#" ValueChanged="OnSettingChanged" />
               </Grid>
               <TextBlock Classes="hint"
-                         Text="Maximum size is the longest side of the image (for curved shapes, measured along the curve). Stand depth 0 = no stand." />
+                         Text="{l:T Model.Hint}" />
             </StackPanel>
           </Expander>
 
 
           <!-- Light support -->
-          <Expander Header="Light support" IsExpanded="True">
+          <Expander Header="{l:T Light.Header}" IsExpanded="True">
             <StackPanel Spacing="4">
               <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto">
-                <TextBlock Classes="label" Grid.Row="0" Text="Light source" c:Help.Topic="LightSource" />
-                <ComboBox x:Name="LightCombo" c:Help.Topic="LightSource" Grid.Row="0" Grid.Column="1" HorizontalAlignment="Stretch"
+                <TextBlock Classes="label" Grid.Row="0" Text="{l:T Light.Source}" c:Help.Topic="LightSource" />
+                <ComboBox x:Name="LightCombo" VerticalAlignment="Center" c:Help.Topic="LightSource" Grid.Row="0" Grid.Column="1" HorizontalAlignment="Stretch"
                           SelectedIndex="0" SelectionChanged="OnLightChanged" Margin="0,2">
-                  <ComboBoxItem Content="None" />
-                  <ComboBoxItem Content="LED strip / string" />
-                  <ComboBoxItem Content="Lamp" />
+                  <ComboBoxItem Content="{l:T LightType.None}" />
+                  <ComboBoxItem Content="{l:T LightType.LedStrip}" />
+                  <ComboBoxItem Content="{l:T LightType.Lamp}" />
                 </ComboBox>
-                <TextBlock Classes="label" Grid.Row="1" Text="Base height (mm)" c:Help.Topic="SupportHeight" />
+                <TextBlock Classes="label" Grid.Row="1" Text="{l:T Light.SupportHeight}" c:Help.Topic="SupportHeight" />
                 <NumericUpDown x:Name="SupportHeightBox" c:Help.Topic="SupportHeight" Grid.Row="1" Grid.Column="1" Minimum="8" Maximum="100"
                                Increment="1" Value="20" FormatString="0.#" ValueChanged="OnSettingChanged" />
-                <TextBlock Classes="label" Grid.Row="2" Text="Slot depth (mm)" c:Help.Topic="SlotDepth" />
+                <TextBlock Classes="label" Grid.Row="2" Text="{l:T Light.SlotDepth}" c:Help.Topic="SlotDepth" />
                 <NumericUpDown x:Name="SlotDepthBox" c:Help.Topic="SlotDepth" Grid.Row="2" Grid.Column="1" Minimum="1" Maximum="30"
                                Increment="0.5" Value="4" FormatString="0.0#" ValueChanged="OnSettingChanged" />
-                <TextBlock Classes="label" Grid.Row="3" Text="Slot clearance (mm)" c:Help.Topic="SlotClearance" />
+                <TextBlock Classes="label" Grid.Row="3" Text="{l:T Light.SlotClearance}" c:Help.Topic="SlotClearance" />
                 <NumericUpDown x:Name="ClearanceBox" c:Help.Topic="SlotClearance" Grid.Row="3" Grid.Column="1" Minimum="0" Maximum="2"
                                Increment="0.05" Value="0.3" FormatString="0.0#" ValueChanged="OnSettingChanged" />
-                <TextBlock Classes="label" Grid.Row="4" Text="Wall thickness (mm)" c:Help.Topic="SupportWall" />
+                <TextBlock Classes="label" Grid.Row="4" Text="{l:T Light.SupportWall}" c:Help.Topic="SupportWall" />
                 <NumericUpDown x:Name="SupportWallBox" c:Help.Topic="SupportWall" Grid.Row="4" Grid.Column="1" Minimum="0.8" Maximum="10"
                                Increment="0.2" Value="2" FormatString="0.0#" ValueChanged="OnSettingChanged" />
-                <TextBlock x:Name="MinDepthLabel" Classes="label" Grid.Row="5" Text="Min. base depth (mm)" c:Help.Topic="SupportMinDepth" />
+                <TextBlock x:Name="MinDepthLabel" Classes="label" Grid.Row="5" Text="{l:T Light.MinDepth}" c:Help.Topic="SupportMinDepth" />
                 <NumericUpDown x:Name="MinDepthBox" c:Help.Topic="SupportMinDepth" Grid.Row="5" Grid.Column="1" Minimum="0" Maximum="200"
                                Increment="1" Value="30" FormatString="0.#" ValueChanged="OnSettingChanged" />
-                <TextBlock Classes="label" Grid.Row="6" Text="Cable hole Ø (mm)" c:Help.Topic="CableDiameter" />
+                <TextBlock Classes="label" Grid.Row="6" Text="{l:T Light.Cable}" c:Help.Topic="CableDiameter" />
                 <NumericUpDown x:Name="CableBox" c:Help.Topic="CableDiameter" Grid.Row="6" Grid.Column="1" Minimum="2" Maximum="20"
                                Increment="0.5" Value="6" FormatString="0.0#" ValueChanged="OnSettingChanged" />
               </Grid>
 
               <Grid x:Name="LedPanel" ColumnDefinitions="*,*" RowDefinitions="Auto,Auto">
-                <TextBlock x:Name="LedWidthLabel" Classes="label" Grid.Row="0" Text="LED channel width (mm)" c:Help.Topic="LedChannelWidth" />
+                <TextBlock x:Name="LedWidthLabel" Classes="label" Grid.Row="0" Text="{l:T Light.LedWidth}" c:Help.Topic="LedChannelWidth" />
                 <NumericUpDown x:Name="LedWidthBox" c:Help.Topic="LedChannelWidth" Grid.Row="0" Grid.Column="1" Minimum="3" Maximum="60"
                                Increment="1" Value="12" FormatString="0.#" ValueChanged="OnSettingChanged" />
-                <TextBlock Classes="label" Grid.Row="1" Text="LED channel depth (mm)" c:Help.Topic="LedChannelDepth" />
+                <TextBlock Classes="label" Grid.Row="1" Text="{l:T Light.LedDepth}" c:Help.Topic="LedChannelDepth" />
                 <NumericUpDown x:Name="LedDepthBox" c:Help.Topic="LedChannelDepth" Grid.Row="1" Grid.Column="1" Minimum="1" Maximum="80"
                                Increment="0.5" Value="6" FormatString="0.0#" ValueChanged="OnSettingChanged" />
               </Grid>
 
               <Grid x:Name="LampPanel" ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto">
-                <TextBlock Classes="label" Grid.Row="0" Text="Lamp type" c:Help.Topic="LampPreset" />
-                <ComboBox x:Name="LampPresetCombo" c:Help.Topic="LampPreset" Grid.Row="0" Grid.Column="1" HorizontalAlignment="Stretch"
+                <TextBlock Classes="label" Grid.Row="0" Text="{l:T Light.LampType}" c:Help.Topic="LampPreset" />
+                <ComboBox x:Name="LampPresetCombo" VerticalAlignment="Center" c:Help.Topic="LampPreset" Grid.Row="0" Grid.Column="1" HorizontalAlignment="Stretch"
                           SelectedIndex="0" SelectionChanged="OnLampPresetChanged" Margin="0,2">
-                  <ComboBoxItem Content="Tea light (Ø38)" />
-                  <ComboBoxItem Content="LED puck light (Ø60)" />
-                  <ComboBoxItem Content="E14 socket (Ø29 hole)" />
-                  <ComboBoxItem Content="E27 socket (Ø40 hole)" />
-                  <ComboBoxItem Content="Lamp tube M10 (Ø10.5)" />
-                  <ComboBoxItem Content="Custom" />
+                  <ComboBoxItem Content="{l:T LampPreset.TeaLight}" />
+                  <ComboBoxItem Content="{l:T LampPreset.Puck}" />
+                  <ComboBoxItem Content="{l:T LampPreset.E14}" />
+                  <ComboBoxItem Content="{l:T LampPreset.E27}" />
+                  <ComboBoxItem Content="{l:T LampPreset.M10}" />
+                  <ComboBoxItem Content="{l:T Common.Custom}" />
                 </ComboBox>
-                <TextBlock Classes="label" Grid.Row="1" Text="Lamp hole Ø (mm)" c:Help.Topic="LampDiameter" />
+                <TextBlock Classes="label" Grid.Row="1" Text="{l:T Light.LampDiameter}" c:Help.Topic="LampDiameter" />
                 <NumericUpDown x:Name="LampDiameterBox" c:Help.Topic="LampDiameter" Grid.Row="1" Grid.Column="1" Minimum="3" Maximum="200"
                                Increment="0.5" Value="40" FormatString="0.0#" ValueChanged="OnSettingChanged" />
-                <TextBlock Classes="label" Grid.Row="2" Text="Recess depth (mm)" c:Help.Topic="LampDepth" />
+                <TextBlock Classes="label" Grid.Row="2" Text="{l:T Light.LampDepth}" c:Help.Topic="LampDepth" />
                 <NumericUpDown x:Name="LampDepthBox" c:Help.Topic="LampDepth" Grid.Row="2" Grid.Column="1" Minimum="1" Maximum="80"
                                Increment="0.5" Value="12" FormatString="0.0#" ValueChanged="OnSettingChanged" />
-                <CheckBox x:Name="ThroughCheck" c:Help.Topic="LampThrough" Grid.Row="3" Grid.ColumnSpan="2" Content="Hole goes through the base (socket)"
-                          IsCheckedChanged="OnSettingChanged" />
+                <CheckBox x:Name="ThroughCheck" c:Help.Topic="LampThrough" Grid.Row="3" Grid.ColumnSpan="2"
+                          IsCheckedChanged="OnSettingChanged">
+                  <TextBlock Text="{l:T Light.Through}" TextWrapping="Wrap" />
+                </CheckBox>
               </Grid>
 
-              <CheckBox x:Name="ShowLightCheck" c:Help.Topic="ShowLight" Content="Show the light source in the preview" IsChecked="True"
-                        IsCheckedChanged="OnShowLightChanged" />
+              <CheckBox x:Name="ShowLightCheck" c:Help.Topic="ShowLight" IsChecked="True"
+                        IsCheckedChanged="OnShowLightChanged">
+                <TextBlock Text="{l:T Light.ShowLight}" TextWrapping="Wrap" />
+              </CheckBox>
               <TextBlock x:Name="LightHint" Classes="hint"
-                         Text="The lithophane slides into the slot; keep the border at least as tall as the slot depth so no image is hidden. The cable runs through a hole and a groove under the base." />
+                         Text="{l:T Light.Hint}" />
             </StackPanel>
           </Expander>
         </StackPanel>
@@ -240,54 +249,56 @@
       <Border DockPanel.Dock="Top" Padding="10,6">
         <DockPanel>
           <StackPanel Orientation="Horizontal" Spacing="12" DockPanel.Dock="Left">
-            <ToggleSwitch x:Name="BacklitSwitch" c:Help.Topic="Backlit" OnContent="Backlit view" OffContent="Backlit view"
+            <ToggleSwitch x:Name="BacklitSwitch" c:Help.Topic="Backlit" OnContent="{l:T Preview.Backlit}" OffContent="{l:T Preview.Backlit}"
                           IsCheckedChanged="OnBacklitChanged" />
-            <Button Content="Reset view" Click="OnResetViewClick" />
+            <Button Content="{l:T Preview.ResetView}" Click="OnResetViewClick" />
           </StackPanel>
+          <ComboBox x:Name="LanguageCombo" DockPanel.Dock="Right" MinWidth="120" Margin="12,0,0,0" VerticalAlignment="Center"
+                    SelectionChanged="OnLanguageSelected" ToolTip.Tip="{l:T Language.Tip}" />
           <TextBlock x:Name="StatusText" Classes="hint" VerticalAlignment="Center" HorizontalAlignment="Right"
-                     Text="Left-drag: rotate · Right-drag: pan · Wheel: zoom" />
+                     Text="{l:T Preview.Hint}" />
         </DockPanel>
       </Border>
       <Border x:Name="SimPanel" DockPanel.Dock="Top" Padding="10,0,10,6" IsVisible="False">
         <WrapPanel>
           <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,16,4">
-            <TextBlock Classes="label" Text="Light" c:Help.Topic="LightColor" />
-            <ComboBox x:Name="LightPresetCombo" c:Help.Topic="LightColor" Width="190" SelectedIndex="0" SelectionChanged="OnLightPresetChanged">
-              <ComboBoxItem Content="Warm white 2700 K" />
-              <ComboBoxItem Content="Soft white 3000 K" />
-              <ComboBoxItem Content="Neutral 4000 K" />
-              <ComboBoxItem Content="Cool white 6500 K" />
-              <ComboBoxItem Content="Red" />
-              <ComboBoxItem Content="Orange" />
-              <ComboBoxItem Content="Yellow" />
-              <ComboBoxItem Content="Green" />
-              <ComboBoxItem Content="Blue" />
-              <ComboBoxItem Content="Purple" />
-              <ComboBoxItem Content="Custom" />
+            <TextBlock Classes="label" Text="{l:T Preview.Light}" c:Help.Topic="LightColor" />
+            <ComboBox x:Name="LightPresetCombo" c:Help.Topic="LightColor" MinWidth="190" SelectedIndex="0" SelectionChanged="OnLightPresetChanged">
+              <ComboBoxItem Content="{l:T LightPreset.Warm}" />
+              <ComboBoxItem Content="{l:T LightPreset.Soft}" />
+              <ComboBoxItem Content="{l:T LightPreset.Neutral}" />
+              <ComboBoxItem Content="{l:T LightPreset.Cool}" />
+              <ComboBoxItem Content="{l:T Color.Red}" />
+              <ComboBoxItem Content="{l:T Color.Orange}" />
+              <ComboBoxItem Content="{l:T Color.Yellow}" />
+              <ComboBoxItem Content="{l:T Color.Green}" />
+              <ComboBoxItem Content="{l:T Color.Blue}" />
+              <ComboBoxItem Content="{l:T Color.Purple}" />
+              <ComboBoxItem Content="{l:T Common.Custom}" />
             </ComboBox>
             <ColorPicker x:Name="LightColorPicker" c:Help.Topic="LightColor" Color="#FFA957" Width="44" Height="30"
                          IsAlphaEnabled="False" IsAlphaVisible="False" ColorChanged="OnLightColorPicked" />
           </StackPanel>
           <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,16,4">
-            <TextBlock Classes="label" Text="Power" c:Help.Topic="LightPower" />
+            <TextBlock Classes="label" Text="{l:T Preview.Power}" c:Help.Topic="LightPower" />
             <Slider x:Name="PowerSlider" c:Help.Topic="LightPower" Width="120" Minimum="0.1" Maximum="4" Value="1" VerticalAlignment="Center"
                     ValueChanged="OnPowerChanged" />
-            <TextBlock x:Name="PowerText" Classes="label" Text="100 %" MinWidth="42" />
+            <TextBlock x:Name="PowerText" Classes="label" Text="" MinWidth="42" />
           </StackPanel>
           <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,0,4">
-            <TextBlock Classes="label" Text="Filament" c:Help.Topic="Filament" />
-            <ComboBox x:Name="FilamentPresetCombo" c:Help.Topic="Filament" Width="120" SelectedIndex="0" SelectionChanged="OnFilamentPresetChanged">
-              <ComboBoxItem Content="White" />
-              <ComboBoxItem Content="Ivory" />
-              <ComboBoxItem Content="Light grey" />
-              <ComboBoxItem Content="Yellow" />
-              <ComboBoxItem Content="Orange" />
-              <ComboBoxItem Content="Red" />
-              <ComboBoxItem Content="Pink" />
-              <ComboBoxItem Content="Green" />
-              <ComboBoxItem Content="Blue" />
-              <ComboBoxItem Content="Purple" />
-              <ComboBoxItem Content="Custom" />
+            <TextBlock Classes="label" Text="{l:T Preview.Filament}" c:Help.Topic="Filament" />
+            <ComboBox x:Name="FilamentPresetCombo" c:Help.Topic="Filament" MinWidth="120" SelectedIndex="0" SelectionChanged="OnFilamentPresetChanged">
+              <ComboBoxItem Content="{l:T Filament.White}" />
+              <ComboBoxItem Content="{l:T Filament.Ivory}" />
+              <ComboBoxItem Content="{l:T Filament.LightGrey}" />
+              <ComboBoxItem Content="{l:T Color.Yellow}" />
+              <ComboBoxItem Content="{l:T Color.Orange}" />
+              <ComboBoxItem Content="{l:T Color.Red}" />
+              <ComboBoxItem Content="{l:T Color.Pink}" />
+              <ComboBoxItem Content="{l:T Color.Green}" />
+              <ComboBoxItem Content="{l:T Color.Blue}" />
+              <ComboBoxItem Content="{l:T Color.Purple}" />
+              <ComboBoxItem Content="{l:T Common.Custom}" />
             </ComboBox>
             <ColorPicker x:Name="FilamentColorPicker" c:Help.Topic="Filament" Color="#FFFFFF" Width="44" Height="30"
                          IsAlphaEnabled="False" IsAlphaVisible="False" ColorChanged="OnFilamentColorPicked" />
@@ -296,7 +307,7 @@
       </Border>
       <Panel>
         <c:PreviewControl x:Name="Preview" />
-        <TextBlock x:Name="EmptyHint" Text="Add or drop an image to create a lithophane"
+        <TextBlock x:Name="EmptyHint" Text="{l:T Preview.Empty}"
                    HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#B0FFFFFF"
                    FontSize="18" IsHitTestVisible="False" />
       </Panel>

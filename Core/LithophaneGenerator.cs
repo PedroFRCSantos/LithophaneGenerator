@@ -2,8 +2,21 @@ using System.Numerics;
 
 namespace LithophaneGUI.Core;
 
+/// <summary>A warning for the UI: <paramref name="Key"/> selects the message, <paramref name="Value"/> is its number (mm).</summary>
+public readonly record struct Note(string Key, double Value)
+{
+    public override string ToString() => $"{Key}: {Value:0.#}";
+}
+
+public static class NoteKeys
+{
+    public const string BaseHeightRaised = "BaseHeightRaised";
+    public const string RecessLimited = "RecessLimited";
+    public const string LampHoleReduced = "LampHoleReduced";
+}
+
 /// <param name="Light">The light inside the support, for the preview only.</param>
-public sealed record ModelParts(Mesh Lithophane, Mesh? Support, LightFixture? Light, IReadOnlyList<string> Notes);
+public sealed record ModelParts(Mesh Lithophane, Mesh? Support, LightFixture? Light, IReadOnlyList<Note> Notes);
 
 public static class LithophaneGenerator
 {
@@ -56,7 +69,7 @@ public static class LithophaneGenerator
         if (mesh.SignedVolume() < 0)
             mesh.FlipWinding();
 
-        var notes = new List<string>();
+        var notes = new List<Note>();
         Mesh? support = null;
         LightFixture? light = null;
         if (s.HasLightSupport)

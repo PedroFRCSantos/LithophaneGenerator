@@ -21,7 +21,7 @@ public static class LightSupportGenerator
     /// <param name="maxCells">Voxel budget; the grid spacing is chosen to stay within it.</param>
     /// <returns>The support mesh and the light fixture inside it (preview only).</returns>
     public static (Mesh Support, LightFixture Light) Generate(LithophaneSettings s, ProfileSurface profile,
-        int maxCells, List<string> notes, CancellationToken ct = default)
+        int maxCells, List<Note> notes, CancellationToken ct = default)
     {
         bool closed = profile.ClosedU;
         double L = profile.Length;
@@ -33,7 +33,7 @@ public static class LightSupportGenerator
 
         // Enough material under the slot for the cable groove.
         double height = Math.Max(s.SupportHeight, slot + cable + 2);
-        if (height > s.SupportHeight + 1e-6) notes.Add($"Base height raised to {height:0.#} mm to fit the cable groove");
+        if (height > s.SupportHeight + 1e-6) notes.Add(new Note(NoteKeys.BaseHeightRaised, height));
         double zTop = slot, zBot = slot - height;
         double maxRecess = height - cable - 2;
 
@@ -43,7 +43,7 @@ public static class LightSupportGenerator
         if (!through && lightDepth > maxRecess)
         {
             lightDepth = maxRecess;
-            notes.Add($"Light recess limited to {lightDepth:0.#} mm deep (increase base height for more)");
+            notes.Add(new Note(NoteKeys.RecessLimited, lightDepth));
         }
         double lightFloor = through ? zBot - 1 : zTop - Math.Max(1, lightDepth);
 
@@ -60,7 +60,7 @@ public static class LightSupportGenerator
             if (!led && lampRadius > maxLamp)
             {
                 lampRadius = Math.Max(1, maxLamp);
-                notes.Add($"Lamp hole reduced to Ø{2 * lampRadius:0.#} mm to fit inside the lithophane");
+                notes.Add(new Note(NoteKeys.LampHoleReduced, 2 * lampRadius));
             }
             lampCenter = center;
             holePos = center;

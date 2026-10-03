@@ -42,6 +42,13 @@ what the parameter means and a short explanation, so you rarely need this guide 
 
 ![Help tooltip for Slot depth](images/help-tooltip.png)
 
+**Language:** the window opens in your system language when it is one of English, Chinese, Hindi,
+Spanish, Arabic, French, Bengali, Portuguese, Russian or Urdu; otherwise in English. The combo box at the
+top right of the preview changes the language immediately (labels, messages, warnings and the help
+sketches) and the choice is remembered between runs. Arabic and Urdu mirror the layout right-to-left;
+the 3D preview and the help sketches are never mirrored. Numbers always use your system's decimal
+separator, whatever the language.
+
 The preview updates automatically about a quarter of a second after you stop changing a value. To stay
 responsive it uses a reduced mesh resolution; **exports always use the full resolution** you set.
 

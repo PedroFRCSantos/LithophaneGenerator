@@ -30,6 +30,9 @@ public sealed class PreviewControl : Control
         Focusable = true;
     }
 
+    /// <summary>The 3D view is drawn by hand and must not be mirrored for right-to-left languages.</summary>
+    protected override bool BypassFlowDirectionPolicies => true;
+
     public bool Backlit
     {
         get => _backlit;

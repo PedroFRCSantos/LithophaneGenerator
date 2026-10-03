@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <AvaloniaResource Include="Assets\icon.ico" />
+    <AvaloniaResource Include="Assets\Lang\*.json" />
   </ItemGroup>
 
   <ItemGroup>
