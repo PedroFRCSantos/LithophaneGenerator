@@ -48,6 +48,8 @@ internet connection, and was inspired by [3dp.rocks/lithophane](https://3dp.rock
 - **Backlit simulator**: pick the **light colour** (warm/cool white, colours or custom), its **power**
   and the **filament colour**; the preview computes how much light reaches each point of the wall
   from the actual light position and how much gets through the plastic (100 % infill).
+- **Built-in help**: hover over any setting to get a short explanation with a sketch of what the
+  parameter means.
 - **Watertight binary STL** export for the selected image, or for every image into a folder.
 - **Projects (`.lipo`)** store all settings and **embed the images**, so a project still opens after the
   original files are moved.
@@ -174,6 +176,7 @@ The [user guide](docs/USER_GUIDE.md) explains every setting and includes printin
 | `Core/LithophaneProject.cs` | `.lipo` project file (JSON: settings + embedded images) |
 | `Rendering/SoftwareRenderer.cs` | Multi-threaded z-buffer preview renderer |
 | `Controls/PreviewControl.cs` | Interactive preview control |
+| `Controls/ParameterHelp.cs` | Help tooltips: topic texts and the code-drawn sketches |
 | `MainWindow.axaml(.cs)` | UI |
 | `Assets/` | Logo (`logo.svg`, plus `logo-small.svg` tuned for 16–32 px) and the app icon (`icon.ico`) |
 | `packaging/linux/` | `.desktop` entry, `.lipo` MIME type, icons and `install.sh` for Linux |

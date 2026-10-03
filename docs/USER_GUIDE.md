@@ -37,6 +37,11 @@ The **left panel** holds every setting, grouped into collapsible sections. The b
 the model size, an estimate of the triangle count and STL file size, and the export buttons. The **right
 side** is the interactive 3D preview.
 
+**Hover over any setting** (its label or its input box) and a tooltip appears with a small sketch of
+what the parameter means and a short explanation, so you rarely need this guide while working.
+
+![Help tooltip for Slot depth](images/help-tooltip.png)
+
 The preview updates automatically about a quarter of a second after you stop changing a value. To stay
 responsive it uses a reduced mesh resolution; **exports always use the full resolution** you set.
 
