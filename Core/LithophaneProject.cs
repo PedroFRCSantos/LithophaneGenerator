@@ -24,6 +24,14 @@ public sealed class LithophaneProject
     /// <summary>Index into the lamp preset list in the UI (the last entry is "Custom").</summary>
     public int LampPreset { get; set; }
     public bool Backlit { get; set; }
+    /// <summary>Draw the light source inside the support in the preview.</summary>
+    public bool ShowLight { get; set; } = true;
+    // Backlit simulation: preset indices (the last entry is "Custom") and the colours as "#AARRGGBB".
+    public int LightPreset { get; set; }
+    public string LightColor { get; set; } = "#FFFFA957";
+    public double LightPower { get; set; } = 1;
+    public int FilamentPreset { get; set; }
+    public string FilamentColor { get; set; } = "#FFFFFFFF";
     public int SelectedImage { get; set; } = -1;
     public List<ProjectImage> Images { get; set; } = new();
 

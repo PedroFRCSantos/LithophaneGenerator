@@ -19,8 +19,9 @@ public static class LightSupportGenerator
         Vector2 LampCenter, double LampRadius);
 
     /// <param name="maxCells">Voxel budget; the grid spacing is chosen to stay within it.</param>
-    public static Mesh Generate(LithophaneSettings s, ProfileSurface profile, int maxCells,
-        List<string> notes, CancellationToken ct = default)
+    /// <returns>The support mesh and the light fixture inside it (preview only).</returns>
+    public static (Mesh Support, LightFixture Light) Generate(LithophaneSettings s, ProfileSurface profile,
+        int maxCells, List<string> notes, CancellationToken ct = default)
     {
         bool closed = profile.ClosedU;
         double L = profile.Length;
@@ -122,7 +123,75 @@ public static class LightSupportGenerator
 
         var mesh = SurfaceNets.Extract(f, nx, ny, nz, origin, (float)h);
         if (mesh.SignedVolume() < 0) mesh.FlipWinding();
-        return mesh;
+        return (mesh, BuildFixture(s, profile, g, closed, led, through, lightDepth));
+    }
+
+    // ---------------------------------------------------------------- light fixture (preview only)
+
+    private const float LedSpacing = 16.7f;     // 60 LEDs per metre
+    private const float EmitterSpacing = 5f;    // sampling of the strip as a line source
+
+    private static LightFixture BuildFixture(LithophaneSettings s, ProfileSurface profile, Geometry g,
+        bool closed, bool led, bool through, double lightDepth)
+    {
+        var mesh = new Mesh();
+        var emitters = new List<Vector3>();
+        float floor = (float)g.LightFloor;
+        float wallOffset = (float)(-g.C - g.W);
+
+        if (led)
+        {
+            // A strip along the channel (or around the inside of the tray) with a chip every 16.7 mm.
+            double width = closed ? 8 : Math.Min(10, Math.Max(2, s.LedChannelWidth) - 1);
+            double centre = closed ? -g.C - g.W - 2 - width / 2 : -g.C - g.W - Math.Max(2, s.LedChannelWidth) / 2;
+            double d0 = centre - width / 2, d1 = centre + width / 2;
+            mesh.Append(Primitives.Sweep(profile, 0, g.L, closed, d0, d1, floor, floor + 1.2, 0.35f), MeshPart.Light);
+            int chips = Math.Max(1, (int)Math.Floor(g.L / LedSpacing));
+            double step = closed ? g.L / chips : g.L / (chips + 1);
+            for (int k = 0; k < chips; k++)
+            {
+                double sc = closed ? step * k + step / 2 : step * (k + 1);
+                mesh.Append(Primitives.Sweep(profile, sc - 2.5, sc + 2.5, false, centre - 2.5, centre + 2.5,
+                    floor + 1.2, floor + 2.2, 1f), MeshPart.Light);
+            }
+            int samples = Math.Max(2, (int)Math.Ceiling(g.L / EmitterSpacing));
+            for (int k = 0; k < samples; k++)
+            {
+                double sp = closed ? g.L * k / samples : g.L * (k + 0.5) / samples;
+                var q = profile.PointAt(sp) + profile.NormalAt(sp) * (float)centre;
+                emitters.Add(new Vector3(q.X, q.Y, floor + 2.2f));
+            }
+            return new LightFixture(mesh, emitters.ToArray(), true, wallOffset, (float)g.ZTop);
+        }
+
+        var c = g.LampCenter;
+        float r = (float)g.LampRadius;
+        if (!through)
+        {
+            // A tea light or LED puck standing in the recess, glowing from the top.
+            float h = (float)Math.Clamp(lightDepth + 4, 8, 24);
+            mesh.Append(Primitives.Cylinder(c, r - 1, floor, floor + h, 0.25f, 1f), MeshPart.Light);
+            emitters.Add(new Vector3(c, floor + h));
+            for (int k = 0; k < 8; k++)
+            {
+                float a = 2 * MathF.PI * k / 8;
+                emitters.Add(new Vector3(c + 0.6f * (r - 1) * new Vector2(MathF.Cos(a), MathF.Sin(a)), floor + h));
+            }
+            return new LightFixture(mesh, emitters.ToArray(), true, wallOffset, (float)g.ZTop);
+        }
+
+        // A socket in the hole with a bulb on top.
+        float top = (float)g.ZTop;
+        float neck = Math.Min(r * 0.9f, 14f), neckHeight = 12f;
+        float bulb = Math.Clamp(r * 1.4f, 10f, 32f);
+        var bulbCentre = new Vector3(c, top + 2 + neckHeight + bulb * 0.8f);
+        mesh.Append(Primitives.Cylinder(c, r - 0.5f, (float)g.ZBot, top + 2, 0.15f, 0.15f), MeshPart.Light);
+        mesh.Append(Primitives.Cylinder(c, neck, top + 2, top + 2 + neckHeight, 0.5f, 0.5f), MeshPart.Light);
+        mesh.Append(Primitives.Sphere(bulbCentre, bulb, 1f), MeshPart.Light);
+        emitters.Add(bulbCentre);
+        foreach (var axis in new[] { Vector3.UnitX, -Vector3.UnitX, Vector3.UnitY, -Vector3.UnitY, Vector3.UnitZ, -Vector3.UnitZ })
+            emitters.Add(bulbCentre + axis * bulb * 0.7f);
+        return new LightFixture(mesh, emitters.ToArray(), false, wallOffset, top);
     }
 
     /// <summary>Approximate centre and radius of the largest circle inside a closed footprint.</summary>

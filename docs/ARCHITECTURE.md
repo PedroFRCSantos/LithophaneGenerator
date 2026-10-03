@@ -107,11 +107,31 @@ header, a triangle count, and 50 bytes per triangle.
 The preview does not use the GPU. It is a small **multi-threaded z-buffer rasteriser** that writes into a
 `WriteableBitmap`, so it works the same on every platform and inside VMs.
 
-- **Normal mode:** flat shading with a headlight slightly above and to the left of the camera. The support
-  is drawn in blue as a secondary part of the mesh.
-- **Backlit mode:** every lithophane vertex carries its thickness. Transmission is modelled as
-  `exp(−k · (t − tMin))`, with `k` chosen so the thickest areas pass about 1/25 of the light, and mapped to
-  a warm lamp-like colour ramp.
+A mesh is made of **parts** (`MeshPart`): the lithophane, the support (blue) and, in the preview only,
+the light fixture. Each vertex carries its wall thickness and an *illumination* value.
+
+- **Normal mode:** flat shading with a headlight slightly above and to the left of the camera. The
+  fixture is drawn grey, tinted with the light colour where it glows.
+- **Backlit mode** (`LightSimulation`: light colour, power, filament colour, all sRGB):
+  1. Colours are converted to linear RGB. The filament colour sets a per-channel absorption
+     `μ_c = μ_white − ln(f_c) / t_ref` (μ_white = 1.5 /mm for solid white PLA, t_ref = 1.5 mm).
+  2. Each lithophane vertex gets `light × power × illumination × exp(−μ_c · t)`.
+  3. Pixels interpolate these colours, add a tiny ambient term, and go through a tone-mapping +
+     sRGB lookup table (`1 − exp(−3.5x)`, then gamma 1/2.2).
+
+### The light fixture and illumination (`LightFixture`, `Illumination`)
+
+`LightSupportGenerator` also returns a `LightFixture`: a small mesh of the light (built from
+`Primitives`: swept strips and LED chips, cylinders for tea lights and pucks, a socket + neck + sphere
+for bulbs) and a list of **emitter points** in the same frame as the lithophane. LEDs and pucks emit
+upwards (Lambertian around +Z); bulbs emit in every direction.
+
+`Illumination.Compute` then evaluates, for every back-surface node of the lithophane, an inverse-square
+sum over the emitters with the emitter's and the receiver's cosine factors. A ray from an emitter must
+clear the top of the wall between the slot and the light, which gives the shadow just above the base.
+The result is normalised to the brightest node and compressed (`0.15 + 0.85·√x`) to stand in for light
+bouncing around inside the base. Because this depends only on geometry, changing the light colour or
+power is a re-render, not a regeneration.
 
 `OrbitCamera` handles yaw, pitch, distance and pan, and frames the mesh from the front when a new model is
 loaded. Preview generation runs on a background task, is debounced by 250 ms, and is cancelled when

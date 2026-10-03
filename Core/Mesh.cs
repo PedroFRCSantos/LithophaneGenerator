@@ -2,41 +2,59 @@ using System.Numerics;
 
 namespace LithophaneGUI.Core;
 
+public enum MeshPart
+{
+    Lithophane,
+    /// <summary>The light support, drawn in a different colour in the preview.</summary>
+    Support,
+    /// <summary>The light source inside the support; preview only, never exported.</summary>
+    Light,
+}
+
 public sealed class Mesh
 {
     public List<Vector3> Vertices { get; } = new();
     /// <summary>Per-vertex wall thickness in mm, used for the backlit preview.</summary>
     public List<float> Thickness { get; } = new();
+    /// <summary>
+    /// Per-vertex light factor for the backlit preview: for the lithophane, how much of the light
+    /// reaches the back of the wall there (0..1); for the light part, how brightly it glows.
+    /// </summary>
+    public List<float> Illumination { get; } = new();
     public List<int> Indices { get; } = new();
 
     public int TriangleCount => Indices.Count / 3;
 
-    /// <summary>
-    /// First vertex / triangle of a secondary part (the light support), drawn in a different
-    /// colour in the preview. Equal to the counts when there is none.
-    /// </summary>
-    public int SecondaryVertexStart { get; private set; } = int.MaxValue;
-    public int SecondaryTriangleStart { get; private set; } = int.MaxValue;
+    private readonly List<(MeshPart Kind, int VertexStart, int TriangleStart)> _parts = new();
+
+    /// <summary>Appended parts in order; triangles before the first entry belong to the lithophane.</summary>
+    public IReadOnlyList<(MeshPart Kind, int VertexStart, int TriangleStart)> Parts => _parts;
 
     public Mesh Clone()
     {
         var m = new Mesh();
         m.Vertices.AddRange(Vertices);
         m.Thickness.AddRange(Thickness);
+        m.Illumination.AddRange(Illumination);
         m.Indices.AddRange(Indices);
-        m.SecondaryVertexStart = SecondaryVertexStart;
-        m.SecondaryTriangleStart = SecondaryTriangleStart;
+        m._parts.AddRange(_parts);
         return m;
     }
 
-    /// <summary>Appends another mesh as the secondary part.</summary>
-    public void AppendSecondary(Mesh other)
+    /// <summary>Appends another mesh as the light support.</summary>
+    public void AppendSecondary(Mesh other) => Append(other, MeshPart.Support);
+
+    /// <summary>Appends another mesh as a part of the given kind.</summary>
+    public void Append(Mesh other, MeshPart kind)
     {
         int offset = Vertices.Count;
-        SecondaryVertexStart = Math.Min(SecondaryVertexStart, offset);
-        SecondaryTriangleStart = Math.Min(SecondaryTriangleStart, TriangleCount);
+        _parts.Add((kind, offset, TriangleCount));
         Vertices.AddRange(other.Vertices);
         Thickness.AddRange(other.Thickness);
+        Illumination.AddRange(other.Illumination);
+        // Keep the per-vertex lists aligned even if the other mesh did not fill them.
+        while (Thickness.Count < Vertices.Count) Thickness.Add(0);
+        while (Illumination.Count < Vertices.Count) Illumination.Add(1);
         Indices.Capacity = Indices.Count + other.Indices.Count;
         foreach (int i in other.Indices) Indices.Add(i + offset);
     }

@@ -61,6 +61,7 @@ public static class SurfaceNets
                     cellVertex[C(i, j, k)] = mesh.Vertices.Count;
                     mesh.Vertices.Add(origin + (new Vector3(i, j, k) + sum / count) * h);
                     mesh.Thickness.Add(0);
+                    mesh.Illumination.Add(0);
                 }
 
         var idx = mesh.Indices;

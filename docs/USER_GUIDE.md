@@ -178,6 +178,15 @@ values:
 Any automatic adjustment (raised base, shallower recess, smaller hole) is listed with a ⚠ in the info
 line.
 
+### Show the light source in the preview
+
+With this box ticked, the preview also draws the light inside the base: an LED strip with its chips in
+the channel or tray, a tea light / puck standing in the recess, or a socket with a bulb for
+through-holes. It is only drawn in the preview and is **never exported**. The size of the bulb follows
+the hole diameter.
+
+![Light fixtures: tea light, E27 bulb, LED strip, and a tea light inside a cylinder](images/light-fixtures.png)
+
 ## 3D preview
 
 | Action | Mouse |
@@ -187,10 +196,36 @@ line.
 | Zoom | Mouse wheel |
 | Reset camera | **Reset view** button |
 
-**Backlit view** replaces the normal shading with a simulation of light shining through the plastic.
-Brightness is based on the local thickness, so you can judge contrast before printing.
+### Backlit view and the light simulator
+
+**Backlit view** replaces the normal shading with a simulation of light shining through the plastic,
+so you can judge contrast and colour before printing. A row of controls appears above the preview:
+
+| Control | Meaning |
+|---|---|
+| **Light** | Colour of the light: warm white (2700 K), soft white (3000 K), neutral (4000 K), cool white (6500 K), a few colours, or **Custom** (click the swatch to pick any colour). Picking a colour in the swatch switches the list to *Custom*. |
+| **Power** | Brightness of the light, 10–400 %. 100 % is a typical LED strip or lamp. Use it to see what a brighter or dimmer light would do. |
+| **Filament** | Colour of the filament you will print with (white, ivory, light grey, colours, or **Custom**). The print is assumed to be solid (100 % infill). |
 
 ![Backlit preview](images/backlit.png)
+
+How it is computed:
+
+- The thickness at each point and the filament colour decide how much of each colour of light gets
+  through (Beer–Lambert absorption; white PLA at 100 % infill passes about 20 % through 1 mm and
+  about 1 % through 3 mm). A coloured filament absorbs the other colours more strongly, so thick areas
+  turn into a deep version of the filament colour and thin areas glow bright.
+- With a **light support**, the light's real position is used: an LED strip at the bottom lights the
+  lower part of a panel more than the top, a bulb lights what is around it, and the wall between the
+  slot and the light casts its shadow. Without a support, the light is assumed to be even.
+- The result is tone-mapped like a camera, so very bright areas roll off softly instead of clipping.
+
+These settings are stored in the project.
+
+![Light simulation examples](images/light-simulation.png)
+
+> **Tip:** if the picture only shows up at a high power, the print will be dark in real life. Reduce
+> **Thickness** or **Thinnest layer**, or lower the gamma, rather than relying on a stronger light.
 
 ## Exporting
 

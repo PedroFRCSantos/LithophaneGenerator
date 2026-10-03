@@ -222,6 +222,8 @@
                           IsCheckedChanged="OnSettingChanged" />
               </Grid>
 
+              <CheckBox x:Name="ShowLightCheck" Content="Show the light source in the preview" IsChecked="True"
+                        IsCheckedChanged="OnShowLightChanged" />
               <TextBlock x:Name="LightHint" Classes="hint"
                          Text="The lithophane slides into the slot; keep the border at least as tall as the slot depth so no image is hidden. The cable runs through a hole and a groove under the base." />
             </StackPanel>
@@ -244,6 +246,54 @@
           <TextBlock x:Name="StatusText" Classes="hint" VerticalAlignment="Center" HorizontalAlignment="Right"
                      Text="Left-drag: rotate · Right-drag: pan · Wheel: zoom" />
         </DockPanel>
+      </Border>
+      <Border x:Name="SimPanel" DockPanel.Dock="Top" Padding="10,0,10,6" IsVisible="False">
+        <WrapPanel>
+          <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,16,4">
+            <TextBlock Classes="label" Text="Light" />
+            <ComboBox x:Name="LightPresetCombo" Width="190" SelectedIndex="0" SelectionChanged="OnLightPresetChanged">
+              <ComboBoxItem Content="Warm white 2700 K" />
+              <ComboBoxItem Content="Soft white 3000 K" />
+              <ComboBoxItem Content="Neutral 4000 K" />
+              <ComboBoxItem Content="Cool white 6500 K" />
+              <ComboBoxItem Content="Red" />
+              <ComboBoxItem Content="Orange" />
+              <ComboBoxItem Content="Yellow" />
+              <ComboBoxItem Content="Green" />
+              <ComboBoxItem Content="Blue" />
+              <ComboBoxItem Content="Purple" />
+              <ComboBoxItem Content="Custom" />
+            </ComboBox>
+            <ColorPicker x:Name="LightColorPicker" Color="#FFA957" Width="44" Height="30"
+                         IsAlphaEnabled="False" IsAlphaVisible="False" ColorChanged="OnLightColorPicked"
+                         ToolTip.Tip="Light colour" />
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,16,4">
+            <TextBlock Classes="label" Text="Power" />
+            <Slider x:Name="PowerSlider" Width="120" Minimum="0.1" Maximum="4" Value="1" VerticalAlignment="Center"
+                    ValueChanged="OnPowerChanged" ToolTip.Tip="Light power (100% = a typical LED strip or lamp)" />
+            <TextBlock x:Name="PowerText" Classes="label" Text="100 %" MinWidth="42" />
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,0,4">
+            <TextBlock Classes="label" Text="Filament" />
+            <ComboBox x:Name="FilamentPresetCombo" Width="120" SelectedIndex="0" SelectionChanged="OnFilamentPresetChanged">
+              <ComboBoxItem Content="White" />
+              <ComboBoxItem Content="Ivory" />
+              <ComboBoxItem Content="Light grey" />
+              <ComboBoxItem Content="Yellow" />
+              <ComboBoxItem Content="Orange" />
+              <ComboBoxItem Content="Red" />
+              <ComboBoxItem Content="Pink" />
+              <ComboBoxItem Content="Green" />
+              <ComboBoxItem Content="Blue" />
+              <ComboBoxItem Content="Purple" />
+              <ComboBoxItem Content="Custom" />
+            </ComboBox>
+            <ColorPicker x:Name="FilamentColorPicker" Color="#FFFFFF" Width="44" Height="30"
+                         IsAlphaEnabled="False" IsAlphaVisible="False" ColorChanged="OnFilamentColorPicked"
+                         ToolTip.Tip="Filament colour (printed at 100% infill)" />
+          </StackPanel>
+        </WrapPanel>
       </Border>
       <Panel>
         <c:PreviewControl x:Name="Preview" />

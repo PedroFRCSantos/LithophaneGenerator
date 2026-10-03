@@ -3,11 +3,14 @@ using System.Diagnostics;
 using System.Text.Json;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
+using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using LithophaneGUI.Core;
+using LithophaneGUI.Rendering;
 
 namespace LithophaneGUI;
 
@@ -25,6 +28,9 @@ public partial class MainWindow : Window
     private CancellationTokenSource? _previewCts;
     private bool _resetCameraOnNextPreview = true;
     private bool _busy;
+    /// <summary>Parts of the current preview, kept so the light can be shown/hidden without regenerating.</summary>
+    private ModelParts? _previewParts;
+    private bool _syncingColors;
 
     private static readonly string StateDir =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "LithophaneGUI");
@@ -185,7 +191,7 @@ public partial class MainWindow : Window
         bool closed = shape is ShapeType.Cylinder or ShapeType.Heart or ShapeType.Dome;
         LedPanel.IsVisible = light == LightSupportType.LedStrip;
         LampPanel.IsVisible = light == LightSupportType.Lamp;
-        LightHint.IsVisible = light != LightSupportType.None;
+        LightHint.IsVisible = ShowLightCheck.IsVisible = light != LightSupportType.None;
         foreach (var c in new Control[] { SupportHeightBox, SlotDepthBox, ClearanceBox, SupportWallBox, CableBox })
             c.IsEnabled = light != LightSupportType.None;
         // Closed shapes get a tray over the whole inside instead of a channel, and have no front/back depth.
@@ -300,6 +306,7 @@ public partial class MainWindow : Window
         else
         {
             _previewCts?.Cancel();
+            _previewParts = null;
             Preview.SetMesh(null, true);
             InfoText.Text = "Add an image to begin.";
         }
@@ -346,17 +353,19 @@ public partial class MainWindow : Window
         var image = item.Image;
         try
         {
-            var (mesh, notes) = await Task.Run(() =>
+            bool showLight = ShowLightCheck.IsChecked == true;
+            var (parts, mesh) = await Task.Run(() =>
             {
                 var parts = LithophaneGenerator.GenerateParts(image, settings, PreviewMaxNodes, PreviewSupportCells, cts.Token);
-                return (LithophaneGenerator.Assemble(parts), parts.Notes);
+                return (parts, LithophaneGenerator.Assemble(parts, showLight));
             }, cts.Token);
             if (cts.IsCancellationRequested) return;
 
+            _previewParts = parts;
             Preview.SetMesh(mesh, _resetCameraOnNextPreview);
             _resetCameraOnNextPreview = false;
-            InfoText.Text = DescribeModel(mesh, image, settings) +
-                string.Concat(notes.Select(n => "\n⚠ " + n));
+            InfoText.Text = DescribeModel(LithophaneGenerator.Assemble(parts), image, settings) +
+                string.Concat(parts.Notes.Select(n => "\n⚠ " + n));
         }
         catch (OperationCanceledException)
         {
@@ -381,8 +390,86 @@ public partial class MainWindow : Window
                $"Lithophane: ~{triangles / 1e6:0.00} M triangles, ~{mb:0} MB STL";
     }
 
-    private void OnBacklitChanged(object? sender, RoutedEventArgs e) =>
-        Preview.Backlit = BacklitSwitch.IsChecked == true;
+    private void OnBacklitChanged(object? sender, RoutedEventArgs e)
+    {
+        bool on = BacklitSwitch.IsChecked == true;
+        Preview.Backlit = on;
+        if (SimPanel != null) SimPanel.IsVisible = on;
+        MarkDirty();
+    }
+
+    private void OnShowLightChanged(object? sender, RoutedEventArgs e)
+    {
+        MarkDirty();
+        if (_previewParts is { } parts)
+            Preview.SetMesh(LithophaneGenerator.Assemble(parts, ShowLightCheck.IsChecked == true), false);
+    }
+
+    // ---------------------------------------------------------------- backlit simulation
+
+    private static readonly Color[] LightPresets =
+    {
+        Color.Parse("#FFA957"), // warm white 2700 K
+        Color.Parse("#FFB46B"), // soft white 3000 K
+        Color.Parse("#FFD1A3"), // neutral white 4000 K
+        Color.Parse("#FFFEFA"), // cool white 6500 K
+        Color.Parse("#FF2A14"), Color.Parse("#FF8C00"), Color.Parse("#FFD000"),
+        Color.Parse("#30FF50"), Color.Parse("#3060FF"), Color.Parse("#B040FF"),
+    };
+
+    private static readonly Color[] FilamentPresets =
+    {
+        Color.Parse("#FFFFFF"), Color.Parse("#F6F0E0"), Color.Parse("#C8C8C8"),
+        Color.Parse("#FFD840"), Color.Parse("#FF8A30"), Color.Parse("#E03030"), Color.Parse("#FF80B0"),
+        Color.Parse("#40B050"), Color.Parse("#3070E0"), Color.Parse("#9050D0"),
+    };
+
+    private void OnLightPresetChanged(object? sender, SelectionChangedEventArgs e) =>
+        ApplyPreset(LightPresetCombo, LightPresets, LightColorPicker);
+
+    private void OnFilamentPresetChanged(object? sender, SelectionChangedEventArgs e) =>
+        ApplyPreset(FilamentPresetCombo, FilamentPresets, FilamentColorPicker);
+
+    private void ApplyPreset(ComboBox combo, Color[] presets, ColorPicker picker)
+    {
+        if (picker == null || _syncingColors) return;
+        int i = combo.SelectedIndex;
+        if (i < 0 || i >= presets.Length) { MarkDirty(); return; } // custom: keep the picked colour
+        _syncingColors = true;
+        picker.Color = presets[i];
+        _syncingColors = false;
+        ApplySimulation();
+    }
+
+    private void OnLightColorPicked(object? sender, ColorChangedEventArgs e) => ColorPicked(LightPresetCombo, LightPresets);
+
+    private void OnFilamentColorPicked(object? sender, ColorChangedEventArgs e) => ColorPicked(FilamentPresetCombo, FilamentPresets);
+
+    /// <summary>A colour chosen in the picker switches the preset list to "Custom".</summary>
+    private void ColorPicked(ComboBox combo, Color[] presets)
+    {
+        if (_syncingColors || combo == null) return;
+        _syncingColors = true;
+        combo.SelectedIndex = presets.Length;
+        _syncingColors = false;
+        ApplySimulation();
+    }
+
+    private void OnPowerChanged(object? sender, RangeBaseValueChangedEventArgs e)
+    {
+        if (PowerText != null) PowerText.Text = $"{PowerSlider.Value * 100:0} %";
+        ApplySimulation();
+    }
+
+    private void ApplySimulation()
+    {
+        if (Preview == null || PowerSlider == null) return;
+        Preview.Simulation = new LightSimulation(ToVector(LightColorPicker.Color), (float)PowerSlider.Value,
+            ToVector(FilamentColorPicker.Color));
+        MarkDirty();
+    }
+
+    private static System.Numerics.Vector3 ToVector(Color c) => new(c.R / 255f, c.G / 255f, c.B / 255f);
 
     private void OnResetViewClick(object? sender, RoutedEventArgs e) => Preview.ResetView();
 
@@ -495,6 +582,12 @@ public partial class MainWindow : Window
         Layout = (ExportLayout)Math.Max(0, LayoutCombo.SelectedIndex),
         LampPreset = LampPresetCombo.SelectedIndex,
         Backlit = BacklitSwitch.IsChecked == true,
+        ShowLight = ShowLightCheck.IsChecked == true,
+        LightPreset = LightPresetCombo.SelectedIndex,
+        LightColor = LightColorPicker.Color.ToString(),
+        LightPower = PowerSlider.Value,
+        FilamentPreset = FilamentPresetCombo.SelectedIndex,
+        FilamentColor = FilamentColorPicker.Color.ToString(),
         SelectedImage = ImageList.SelectedIndex,
         Images = _images.Select(i => new ProjectImage { SourcePath = i.Path, Data = i.FileData, Rotation = i.Rotation })
             .ToList(),
@@ -512,6 +605,8 @@ public partial class MainWindow : Window
             ApplySettings(project.Settings);
             LayoutCombo.SelectedIndex = Math.Clamp((int)project.Layout, 0, LayoutCombo.ItemCount - 1);
             BacklitSwitch.IsChecked = project.Backlit;
+            ShowLightCheck.IsChecked = project.ShowLight;
+            LoadSimulation(project);
 
             SetStatus("Loading project images…");
             var decoded = await Task.Run(() => project.Images.Select(pi =>
@@ -546,6 +641,24 @@ public partial class MainWindow : Window
         SetStatus(failed > 0
             ? $"{failed} image(s) in the project could not be loaded."
             : "Left-drag: rotate · Right-drag: pan · Wheel: zoom");
+    }
+
+    private void LoadSimulation(LithophaneProject project)
+    {
+        _syncingColors = true;
+        try
+        {
+            LightPresetCombo.SelectedIndex = Math.Clamp(project.LightPreset, 0, LightPresets.Length);
+            FilamentPresetCombo.SelectedIndex = Math.Clamp(project.FilamentPreset, 0, FilamentPresets.Length);
+            if (Color.TryParse(project.LightColor, out var light)) LightColorPicker.Color = light;
+            if (Color.TryParse(project.FilamentColor, out var filament)) FilamentColorPicker.Color = filament;
+            PowerSlider.Value = Math.Clamp(project.LightPower, PowerSlider.Minimum, PowerSlider.Maximum);
+        }
+        finally
+        {
+            _syncingColors = false;
+        }
+        ApplySimulation();
     }
 
     private async Task<bool> OpenProjectFileAsync(string path)

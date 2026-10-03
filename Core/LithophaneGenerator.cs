@@ -2,7 +2,8 @@ using System.Numerics;
 
 namespace LithophaneGUI.Core;
 
-public sealed record ModelParts(Mesh Lithophane, Mesh? Support, IReadOnlyList<string> Notes);
+/// <param name="Light">The light inside the support, for the preview only.</param>
+public sealed record ModelParts(Mesh Lithophane, Mesh? Support, LightFixture? Light, IReadOnlyList<string> Notes);
 
 public static class LithophaneGenerator
 {
@@ -57,14 +58,24 @@ public static class LithophaneGenerator
 
         var notes = new List<string>();
         Mesh? support = null;
+        LightFixture? light = null;
         if (s.HasLightSupport)
         {
             var footprint = Surface.Footprint(s, map.WidthMm, map.HeightMm);
-            support = LightSupportGenerator.Generate(s, footprint,
+            (support, light) = LightSupportGenerator.Generate(s, footprint,
                 supportCells > 0 ? supportCells : 4_000_000, notes, ct);
+            ct.ThrowIfCancellationRequested();
+
+            // How much light reaches each point of the wall; front and back vertices share a node.
+            var lit = Illumination.Compute(pos, nrm, light);
+            for (int k = 0; k < lit.Length; k++)
+            {
+                mesh.Illumination[k] = lit[k];
+                mesh.Illumination[lit.Length + k] = lit[k];
+            }
         }
 
-        return new ModelParts(mesh, support, notes);
+        return new ModelParts(mesh, support, light, notes);
     }
 
     /// <summary>Moves a mesh so it rests on Z = 0, centred on the origin in X/Y.</summary>
@@ -75,11 +86,14 @@ public static class LithophaneGenerator
     }
 
     /// <summary>Lithophane standing in its support, with the support drawn as the secondary part.</summary>
-    public static Mesh Assemble(ModelParts parts)
+    /// <param name="showLight">Also include the light fixture (preview only).</param>
+    public static Mesh Assemble(ModelParts parts, bool showLight = false)
     {
         var mesh = parts.Lithophane.Clone();
         if (parts.Support != null)
             mesh.AppendSecondary(parts.Support);
+        if (showLight && parts.Light != null)
+            mesh.Append(parts.Light.Mesh, MeshPart.Light);
         PlaceOnBed(mesh);
         return mesh;
     }
@@ -175,6 +189,7 @@ public static class LithophaneGenerator
         mesh.Vertices.AddRange(back);
         mesh.Thickness.AddRange(thick);
         mesh.Thickness.AddRange(thick);
+        for (int k = 0; k < 2 * count; k++) mesh.Illumination.Add(1f);
 
         int F(int i, int j) => baseIndex + j * nu + (i % nu);
         int B(int i, int j) => baseIndex + count + j * nu + (i % nu);

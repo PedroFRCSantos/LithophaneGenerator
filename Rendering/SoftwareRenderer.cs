@@ -37,18 +37,53 @@ public sealed class OrbitCamera
     }
 }
 
+/// <summary>What the backlit preview simulates: the light and the filament, as sRGB colours.</summary>
+/// <param name="Power">Relative brightness of the light; 1 = normal.</param>
+public sealed record LightSimulation(Vector3 LightColor, float Power, Vector3 FilamentColor)
+{
+    public static readonly LightSimulation Default = new(FromHex("#FFA957"), 1f, FromHex("#FFFFFF"));
+
+    public static Vector3 FromHex(string hex)
+    {
+        hex = hex.TrimStart('#');
+        if (hex.Length == 8) hex = hex[2..];
+        return new Vector3(
+            Convert.ToInt32(hex[..2], 16) / 255f,
+            Convert.ToInt32(hex[2..4], 16) / 255f,
+            Convert.ToInt32(hex[4..6], 16) / 255f);
+    }
+
+    public static Vector3 ToLinear(Vector3 srgb) => new(ToLinear(srgb.X), ToLinear(srgb.Y), ToLinear(srgb.Z));
+
+    private static float ToLinear(float c) => c <= 0.04045f ? c / 12.92f : MathF.Pow((c + 0.055f) / 1.055f, 2.4f);
+}
+
 /// <summary>
 /// Small multi-threaded z-buffer rasteriser. Draws a mesh either with simple lighting or as a
-/// simulated backlit lithophane (brightness from the wall thickness).
+/// simulated backlit lithophane: the light's colour and power, attenuated by how much of it reaches
+/// each point of the wall and by the wall's thickness and filament colour (Beer–Lambert, 100% infill).
 /// </summary>
 public sealed class SoftwareRenderer
 {
+    /// <summary>Attenuation of white PLA at 100% infill, per mm (about 22% left after 1 mm, 1% after 3 mm).</summary>
+    private const float WhiteAbsorption = 1.5f;
+    /// <summary>Thickness at which a coloured filament shows its nominal colour.</summary>
+    private const float ReferenceThickness = 1.5f;
+    /// <summary>Room light reflected off the front of the print, so unlit areas are not pure black.</summary>
+    private const float Ambient = 0.004f;
+
+    private const int LutSize = 4096;
+    private const float LutRange = 16f;
+    /// <summary>Tone mapping + sRGB encoding of a linear value in [0, LutRange], indexed by its square root so dark tones keep enough steps.</summary>
+    private static readonly byte[] ToneLut = BuildLut();
+
     private float[] _depth = Array.Empty<float>();
     private Vector3[] _screen = Array.Empty<Vector3>();
-    private float[] _vertexShade = Array.Empty<float>();
+    private Vector3[] _vertexColor = Array.Empty<Vector3>();
     private float[] _triShade = Array.Empty<float>();
+    private byte[] _triPart = Array.Empty<byte>();
 
-    public void Render(Mesh? mesh, OrbitCamera cam, int width, int height, bool backlit, int[] pixels)
+    public void Render(Mesh? mesh, OrbitCamera cam, int width, int height, bool backlit, LightSimulation sim, int[] pixels)
     {
         if (_depth.Length < width * height) _depth = new float[width * height];
         FillBackground(pixels, width, height, backlit);
@@ -58,8 +93,8 @@ public sealed class SoftwareRenderer
         var verts = mesh.Vertices;
         var idx = mesh.Indices;
         int nv = verts.Count, nt = idx.Count / 3;
-        if (_screen.Length < nv) { _screen = new Vector3[nv]; _vertexShade = new float[nv]; }
-        if (_triShade.Length < nt) _triShade = new float[nt];
+        if (_screen.Length < nv) { _screen = new Vector3[nv]; _vertexColor = new Vector3[nv]; }
+        if (_triShade.Length < nt) { _triShade = new float[nt]; _triPart = new byte[nt]; }
 
         var camPos = cam.Position;
         float near = Math.Max(0.01f, cam.Distance * 0.001f);
@@ -67,30 +102,52 @@ public sealed class SoftwareRenderer
         var proj = Matrix4x4.CreatePerspectiveFieldOfView(cam.FieldOfView, (float)width / height, near, cam.Distance * 10 + 1000);
         var viewProj = view * proj;
 
-        int litVertices = Math.Min(nv, mesh.SecondaryVertexStart);
-        int secondaryTri = mesh.SecondaryTriangleStart;
-        float tMin = float.MaxValue, tMax = float.MinValue;
-        for (int i = 0; i < litVertices; i++) { tMin = Math.Min(tMin, mesh.Thickness[i]); tMax = Math.Max(tMax, mesh.Thickness[i]); }
-        // Transmission falls roughly exponentially with thickness.
-        float absorb = tMax > tMin ? MathF.Log(25f) / (tMax - tMin) : 0;
+        // Which part each vertex / triangle belongs to.
+        var triPart = _triPart;
+        Array.Fill(triPart, (byte)MeshPart.Lithophane, 0, nt);
+        var vertexPart = new byte[nv];
+        foreach (var (kind, vStart, tStart) in mesh.Parts)
+        {
+            Array.Fill(vertexPart, (byte)kind, vStart, nv - vStart);
+            Array.Fill(triPart, (byte)kind, tStart, nt - tStart);
+        }
+
+        // Light and filament in linear RGB; the filament colour sets a per-channel absorption.
+        var light = LightSimulation.ToLinear(sim.LightColor) * sim.Power;
+        var filament = LightSimulation.ToLinear(sim.FilamentColor);
+        var absorb = new Vector3(
+            WhiteAbsorption - MathF.Log(Math.Max(0.02f, filament.X)) / ReferenceThickness,
+            WhiteAbsorption - MathF.Log(Math.Max(0.02f, filament.Y)) / ReferenceThickness,
+            WhiteAbsorption - MathF.Log(Math.Max(0.02f, filament.Z)) / ReferenceThickness);
+        var ambient = filament * Ambient;
 
         var screen = _screen;
-        var vshade = _vertexShade;
+        var vcolor = _vertexColor;
         Parallel.For(0, nv, i =>
         {
             var c = Vector4.Transform(new Vector4(verts[i], 1), viewProj);
             screen[i] = c.W <= near
                 ? new Vector3(float.NaN)
                 : new Vector3((c.X / c.W + 1) * 0.5f * width, (1 - c.Y / c.W) * 0.5f * height, c.Z / c.W);
-            if (backlit && i < litVertices)
-                vshade[i] = MathF.Exp(-absorb * (mesh.Thickness[i] - tMin));
+            if (!backlit) return;
+            float lit = i < mesh.Illumination.Count ? mesh.Illumination[i] : 1f;
+            switch ((MeshPart)vertexPart[i])
+            {
+                case MeshPart.Lithophane:
+                    float t = mesh.Thickness[i];
+                    vcolor[i] = light * lit * new Vector3(MathF.Exp(-absorb.X * t), MathF.Exp(-absorb.Y * t), MathF.Exp(-absorb.Z * t));
+                    break;
+                case MeshPart.Light:
+                    vcolor[i] = light * (2f * lit);
+                    break;
+            }
         });
 
         // Headlight slightly above and to the left of the camera.
         var forward = Vector3.Normalize(cam.Target - camPos);
         var right = Vector3.Normalize(Vector3.Cross(forward, Vector3.UnitZ));
         var up = Vector3.Cross(right, forward);
-        var light = Vector3.Normalize(-forward + 0.4f * up - 0.3f * right);
+        var headlight = Vector3.Normalize(-forward + 0.4f * up - 0.3f * right);
 
         var tshade = _triShade;
         Parallel.For(0, nt, t =>
@@ -100,10 +157,11 @@ public sealed class SoftwareRenderer
             var c = verts[idx[3 * t + 2]];
             var n = Vector3.Cross(b - a, c - a);
             float len = n.Length();
-            float d = len > 0 ? Vector3.Dot(n / len, light) : 0;
+            float d = len > 0 ? Vector3.Dot(n / len, headlight) : 0;
             tshade[t] = 0.18f + 0.82f * Math.Max(0, d);
         });
 
+        var lightSrgb = sim.LightColor;
         int bands = Math.Clamp(Environment.ProcessorCount * 2, 1, height);
         int bandHeight = (height + bands - 1) / bands;
         var depth = _depth;
@@ -135,10 +193,18 @@ public sealed class SoftwareRenderer
                 if (xStart > xEnd) continue;
 
                 float inv = 1f / area;
-                float s0 = 0, s1 = 0, s2 = 0, flat = tshade[t];
-                bool secondary = t >= secondaryTri;
-                bool lit = backlit && !secondary;
-                if (lit) { s0 = vshade[i0]; s1 = vshade[i1]; s2 = vshade[i2]; }
+                float flat = tshade[t];
+                var part = (MeshPart)triPart[t];
+                bool glowing = backlit && part != MeshPart.Support;
+                Vector3 c0 = default, c1 = default, c2 = default;
+                if (glowing) { c0 = vcolor[i0]; c1 = vcolor[i1]; c2 = vcolor[i2]; }
+                int flatColor = part switch
+                {
+                    MeshPart.Support => Support(flat, backlit),
+                    MeshPart.Light => Fixture(flat, lightSrgb, (mesh.Illumination[i0] + mesh.Illumination[i1] + mesh.Illumination[i2]) / 3),
+                    _ => Shaded(flat),
+                };
+                var fill = part == MeshPart.Lithophane ? ambient * flat : Vector3.Zero;
 
                 for (int y = yStart; y <= yEnd; y++)
                 {
@@ -159,9 +225,7 @@ public sealed class SoftwareRenderer
                         if (z >= depth[k]) continue;
                         depth[k] = z;
 
-                        pixels[k] = secondary ? Support(flat, backlit)
-                            : lit ? Backlit(w0 * s0 + w1 * s1 + w2 * s2, flat)
-                            : Shaded(flat);
+                        pixels[k] = glowing ? Tone(w0 * c0 + w1 * c1 + w2 * c2 + fill) : flatColor;
                     }
                 }
             }
@@ -181,13 +245,35 @@ public sealed class SoftwareRenderer
         return unchecked((int)0xFF000000) | (r << 16) | (g << 8) | b;
     }
 
-    private static int Backlit(float transmission, float light)
+    /// <summary>The light fixture when it is switched off: grey, tinted with the light's colour where it glows.</summary>
+    private static int Fixture(float i, Vector3 lightSrgb, float glow)
     {
-        float v = Math.Clamp(transmission * (0.85f + 0.15f * light), 0, 1);
-        int r = (int)(255 * MathF.Pow(v, 0.8f));
-        int g = (int)(235 * v);
-        int b = (int)(190 * v * v);
+        var tint = Vector3.Lerp(new Vector3(0.75f), lightSrgb, glow);
+        float v = i * (0.6f + 0.4f * glow) * 255;
+        int r = (int)(v * tint.X), g = (int)(v * tint.Y), b = (int)(v * tint.Z);
         return unchecked((int)0xFF000000) | (r << 16) | (g << 8) | b;
+    }
+
+    private static int Tone(Vector3 linear)
+    {
+        int r = ToneLut[LutIndex(linear.X)], g = ToneLut[LutIndex(linear.Y)], b = ToneLut[LutIndex(linear.Z)];
+        return unchecked((int)0xFF000000) | (r << 16) | (g << 8) | b;
+    }
+
+    private static int LutIndex(float x) =>
+        x <= 0 ? 0 : Math.Min(LutSize - 1, (int)(MathF.Sqrt(x / LutRange) * (LutSize - 1) + 0.5f));
+
+    private static byte[] BuildLut()
+    {
+        var lut = new byte[LutSize];
+        for (int i = 0; i < LutSize; i++)
+        {
+            float f = (float)i / (LutSize - 1);
+            float x = LutRange * f * f;
+            float v = 1 - MathF.Exp(-3.5f * x);            // soft roll-off instead of clipping
+            lut[i] = (byte)Math.Round(255 * MathF.Pow(v, 1 / 2.2f));
+        }
+        return lut;
     }
 
     private static void FillBackground(int[] pixels, int width, int height, bool backlit)

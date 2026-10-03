@@ -19,6 +19,7 @@ public sealed class PreviewControl : Control
     private int[] _pixels = Array.Empty<int>();
     private Mesh? _mesh;
     private bool _backlit;
+    private LightSimulation _simulation = LightSimulation.Default;
     private bool _dirty = true;
     private Point _lastPointer;
     private bool _rotating, _panning;
@@ -33,6 +34,13 @@ public sealed class PreviewControl : Control
     {
         get => _backlit;
         set { _backlit = value; Redraw(); }
+    }
+
+    /// <summary>Light and filament used by the backlit view.</summary>
+    public LightSimulation Simulation
+    {
+        get => _simulation;
+        set { _simulation = value; Redraw(); }
     }
 
     public void SetMesh(Mesh? mesh, bool resetCamera)
@@ -71,7 +79,7 @@ public sealed class PreviewControl : Control
 
         if (_dirty)
         {
-            _renderer.Render(_mesh, _camera, w, h, _backlit, _pixels);
+            _renderer.Render(_mesh, _camera, w, h, _backlit, _simulation, _pixels);
             using var fb = _bitmap.Lock();
             if (fb.RowBytes == w * 4)
             {

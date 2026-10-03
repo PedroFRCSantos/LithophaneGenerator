@@ -43,8 +43,11 @@ internet connection, and was inspired by [3dp.rocks/lithophane](https://3dp.rock
   - a cable hole plus a groove under the base, so the base still sits flat with the cable in place
 - **Three export layouts**: separate files, one file with the parts side by side, or one file with the
   lithophane standing in its support (printed as a single piece).
-- **Interactive 3D preview** (rotate, pan, zoom) with a **backlit mode** that simulates light shining
-  through the print.
+- **Interactive 3D preview** (rotate, pan, zoom) that also draws the **light source** inside the
+  support (LED strip, tea light, puck or bulb).
+- **Backlit simulator**: pick the **light colour** (warm/cool white, colours or custom), its **power**
+  and the **filament colour**; the preview computes how much light reaches each point of the wall
+  from the actual light position and how much gets through the plastic (100 % infill).
 - **Watertight binary STL** export for the selected image, or for every image into a folder.
 - **Projects (`.lipo`)** store all settings and **embed the images**, so a project still opens after the
   original files are moved.
@@ -52,12 +55,23 @@ internet connection, and was inspired by [3dp.rocks/lithophane](https://3dp.rock
 
 ## Screenshots
 
-### Backlit preview
+### Backlit simulator
 
-Turn on **Backlit view** to see roughly how the print will look with a light behind it. Thin areas
-glow and thick areas stay dark.
+Turn on **Backlit view** to see how the print will look with a light behind it. Thin areas glow and
+thick areas stay dark. Choose the light colour and power and the filament colour to match what you
+will actually print and use.
 
 ![Backlit preview of a flat lithophane](docs/images/backlit.png)
+
+![Light simulation: LED strip behind a panel, cool white at 250 %, red filament, blue light](docs/images/light-simulation.png)
+
+*Top: an LED strip in a base behind a flat panel; cool white light at 250 %. Bottom: red filament with
+a warm white tea light; white filament with a blue light at 200 %.*
+
+When a light support is enabled, the preview also shows the light itself, and the simulation uses its
+real position, so you can see how evenly an LED strip or a bulb lights the print.
+
+![Light fixtures: tea light, E27 bulb, LED strip, and a tea light inside a cylinder](docs/images/light-fixtures.png)
 
 ### Shapes
 
