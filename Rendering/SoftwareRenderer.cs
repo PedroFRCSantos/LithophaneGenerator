@@ -134,6 +134,7 @@ public sealed class SoftwareRenderer
             switch ((MeshPart)vertexPart[i])
             {
                 case MeshPart.Lithophane:
+                case MeshPart.Stand:
                     float t = mesh.Thickness[i];
                     vcolor[i] = light * lit * new Vector3(MathF.Exp(-absorb.X * t), MathF.Exp(-absorb.Y * t), MathF.Exp(-absorb.Z * t));
                     break;
@@ -204,7 +205,7 @@ public sealed class SoftwareRenderer
                     MeshPart.Light => Fixture(flat, lightSrgb, (mesh.Illumination[i0] + mesh.Illumination[i1] + mesh.Illumination[i2]) / 3),
                     _ => Shaded(flat),
                 };
-                var fill = part == MeshPart.Lithophane ? ambient * flat : Vector3.Zero;
+                var fill = part is MeshPart.Lithophane or MeshPart.Stand ? ambient * flat : Vector3.Zero;
 
                 for (int y = yStart; y <= yEnd; y++)
                 {

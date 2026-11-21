@@ -16,7 +16,7 @@ flowchart LR
     G -->|SurfaceNets| H[Support mesh]
     F --> I[Arrange / Assemble]
     H --> I
-    I -->|StlWriter| J[Binary STL]
+    I -->|StlWriter / ThreeMfWriter| J[Binary STL or 3MF]
     I -->|SoftwareRenderer| K[3D preview]
 ```
 
@@ -65,8 +65,9 @@ For every grid node the generator creates two vertices:
 
 Front and back faces are triangulated as quads. Side walls close the boundary; for closed shapes the grid
 wraps in `u`, so only the top and bottom edges need walls. The result is a **closed, manifold solid**, and
-the winding is flipped if the signed volume comes out negative. An optional stand is added as a second slab
-under the bottom edge.
+the winding is flipped if the signed volume comes out negative. An optional stand is built as a second slab
+under the bottom edge and appended as a part of its own (`MeshPart.Stand`), so formats that keep parts apart
+can give it other print settings.
 
 ## 5. Light support (`LightSupportGenerator` + `SurfaceNets`)
 
@@ -87,10 +88,16 @@ directly from triangles would be fragile, so it is modelled as a **signed distan
 one quad per crossed grid edge). The outermost layer of samples is forced to "outside", which guarantees a
 watertight result.
 
+With **Base fill** below 100 % the field gets one more term at export resolution: inside a solid skin, only
+the walls of a gyroid (`|sin x cos y + sin y cos z + sin z cos x| < level`) are kept. The level is the
+quantile of the gyroid over one period that gives the requested share of material, the period follows from
+the thinnest printable wall, and the corners where a cavity meets the skin are rounded so they stay larger
+than a voxel. The preview skips this step.
+
 When settings conflict (for example, a base too low for the cable groove), the generator adjusts the
 geometry and returns human-readable notes, which the UI shows with a ⚠.
 
-## 6. Layout and export (`Arrange`, `StlWriter`)
+## 6. Layout and export (`Arrange`, `StlWriter`, `ThreeMfWriter`)
 
 `GenerateParts` returns the lithophane and the support in a shared coordinate frame, with the lithophane
 standing in the slot. `Arrange` then produces the files for the chosen layout:
@@ -100,7 +107,12 @@ standing in the slot. `Arrange` then produces the files for the chosen layout:
 - **Assembled**: the parts as they fit together, in one mesh.
 
 `PlaceOnBed` centres every mesh in X/Y and puts it on Z = 0. `StlWriter` writes **binary STL**: an 80-byte
-header, a triangle count, and 50 bytes per triangle.
+header, a triangle count, and 50 bytes per triangle. It ignores the parts of a mesh.
+
+`ThreeMfWriter` writes **3MF** (a zip with one XML model, core specification only). `Mesh.PartRanges`
+gives the vertex and triangle run of each part, and every part becomes an `<object>` of its own. Parts of
+one assembly are components of a parent object with a single build item, which slicers show as one object
+with parts; for the side-by-side layout (`ExportFile.Loose`) each part is a build item.
 
 ## 7. Preview (`SoftwareRenderer`, `PreviewControl`)
 

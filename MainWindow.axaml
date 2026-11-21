@@ -36,10 +36,16 @@
     <DockPanel Grid.Column="0">
       <StackPanel DockPanel.Dock="Bottom" Margin="12" Spacing="6">
         <TextBlock x:Name="InfoText" Classes="hint" Text="{l:T Info.Empty}" />
-        <Grid x:Name="LayoutRow" ColumnDefinitions="Auto,*" IsVisible="False">
-          <TextBlock Classes="label" Text="{l:T Export.As}" c:Help.Topic="Layout" />
-          <ComboBox x:Name="LayoutCombo" c:Help.Topic="Layout" Grid.Column="1" HorizontalAlignment="Stretch" SelectedIndex="0"
+        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto">
+          <TextBlock Classes="label" Text="{l:T Export.Format}" c:Help.Topic="Format" />
+          <ComboBox x:Name="FormatCombo" c:Help.Topic="Format" Grid.Column="1" HorizontalAlignment="Stretch" SelectedIndex="0"
                     SelectionChanged="OnLayoutChanged">
+            <ComboBoxItem Content="{l:T Format.Stl}" />
+            <ComboBoxItem Content="{l:T Format.ThreeMf}" />
+          </ComboBox>
+          <TextBlock x:Name="LayoutLabel" Classes="label" Grid.Row="1" Text="{l:T Export.As}" c:Help.Topic="Layout" IsVisible="False" />
+          <ComboBox x:Name="LayoutCombo" c:Help.Topic="Layout" Grid.Row="1" Grid.Column="1" HorizontalAlignment="Stretch" SelectedIndex="0"
+                    Margin="0,6,0,0" SelectionChanged="OnLayoutChanged" IsVisible="False">
             <ComboBoxItem Content="{l:T Layout.Separate}" />
             <ComboBoxItem Content="{l:T Layout.SideBySide}" />
             <ComboBoxItem Content="{l:T Layout.Assembled}" />
@@ -170,7 +176,7 @@
           <!-- Light support -->
           <Expander Header="{l:T Light.Header}" IsExpanded="True">
             <StackPanel Spacing="4">
-              <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto">
+              <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
                 <TextBlock Classes="label" Grid.Row="0" Text="{l:T Light.Source}" c:Help.Topic="LightSource" />
                 <ComboBox x:Name="LightCombo" VerticalAlignment="Center" c:Help.Topic="LightSource" Grid.Row="0" Grid.Column="1" HorizontalAlignment="Stretch"
                           SelectedIndex="0" SelectionChanged="OnLightChanged" Margin="0,2">
@@ -196,6 +202,9 @@
                 <TextBlock Classes="label" Grid.Row="6" Text="{l:T Light.Cable}" c:Help.Topic="CableDiameter" />
                 <NumericUpDown x:Name="CableBox" c:Help.Topic="CableDiameter" Grid.Row="6" Grid.Column="1" Minimum="2" Maximum="20"
                                Increment="0.5" Value="6" FormatString="0.0#" ValueChanged="OnSettingChanged" />
+                <TextBlock Classes="label" Grid.Row="7" Text="{l:T Light.SupportFill}" c:Help.Topic="SupportFill" />
+                <NumericUpDown x:Name="SupportFillBox" c:Help.Topic="SupportFill" Grid.Row="7" Grid.Column="1" Minimum="10" Maximum="100"
+                               Increment="5" Value="100" FormatString="0" ValueChanged="OnSupportFillChanged" />
               </Grid>
 
               <Grid x:Name="LedPanel" ColumnDefinitions="*,*" RowDefinitions="Auto,Auto">

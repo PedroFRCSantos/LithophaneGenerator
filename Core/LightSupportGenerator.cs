@@ -16,12 +16,23 @@ public static class LightSupportGenerator
     private sealed record Geometry(
         double T, double C, double W, double ZBot, double ZTop, double L,
         double DBack, double DFront, double LightFloor, Vector2 HolePos, Vector2 GrooveDir,
-        Vector2 LampCenter, double LampRadius);
+        Vector2 LampCenter, double LampRadius)
+    {
+        /// <summary>Solid skin kept around the lattice, in mm.</summary>
+        public double Shell { get; init; }
+        /// <summary>Angular frequency of the lattice (2π / period); 0 = solid base.</summary>
+        public double LatticeK { get; init; }
+        /// <summary>The lattice walls are where |gyroid| is below this.</summary>
+        public double LatticeLevel { get; init; }
+        /// <summary>Radius that rounds the corners where a cavity meets the skin, in mm.</summary>
+        public double LatticeRound { get; init; }
+    }
 
     /// <param name="maxCells">Voxel budget; the grid spacing is chosen to stay within it.</param>
+    /// <param name="hollow">Honour <see cref="LithophaneSettings.SupportFill"/>; off for the coarse preview.</param>
     /// <returns>The support mesh and the light fixture inside it (preview only).</returns>
     public static (Mesh Support, LightFixture Light) Generate(LithophaneSettings s, ProfileSurface profile,
-        int maxCells, List<Note> notes, CancellationToken ct = default)
+        int maxCells, List<Note> notes, CancellationToken ct = default, bool hollow = true)
     {
         bool closed = profile.ClosedU;
         double L = profile.Length;
@@ -102,6 +113,9 @@ public static class LightSupportGenerator
         int ny = (int)Math.Ceiling((max.Y - min.Y + 2 * pad) / h) + 1;
         int nz = (int)Math.Ceiling((zTop - zBot + 2 * pad) / h) + 1;
 
+        if (hollow && s.SupportFill < 99.5)
+            g = WithLattice(g, s.SupportFill / 100, h);
+
         var field = new ProfileField(profile, closed ? 0 : c + w + 6 * h);
         var f = new float[nx * ny * nz];
 
@@ -124,6 +138,47 @@ public static class LightSupportGenerator
         var mesh = SurfaceNets.Extract(f, nx, ny, nz, origin, (float)h);
         if (mesh.SignedVolume() < 0) mesh.FlipWinding();
         return (mesh, BuildFixture(s, profile, g, closed, led, through, lightDepth));
+    }
+
+    // ---------------------------------------------------------------- hollow base
+
+    private const double MinLatticeWall = 0.8;   // two 0.4 mm extrusion lines
+    private const double MinLatticePeriod = 10, MaxLatticePeriod = 20;
+    /// <summary>Area of the gyroid surface inside one period cube, in units of period².</summary>
+    private const double GyroidArea = 3.09;
+
+    private static double Gyroid(double x, double y, double z) =>
+        Math.Sin(x) * Math.Cos(y) + Math.Sin(y) * Math.Cos(z) + Math.Sin(z) * Math.Cos(x);
+
+    /// <summary>
+    /// Sets up a gyroid lattice that fills <paramref name="fill"/> (0..1) of the inside of the base.
+    /// A gyroid has no flat overhangs, so the cavities print without supports. Its walls are kept
+    /// thick enough to print and to survive the sampling grid; where that is not possible at the
+    /// largest cell size, the base comes out a little denser than asked.
+    /// </summary>
+    private static Geometry WithLattice(Geometry g, double fill, double h)
+    {
+        double wall = Math.Max(MinLatticeWall, 2.5 * h);
+        fill = Math.Clamp(fill, 0.05, 1);
+        // Wall thickness ≈ fill · period / area, so the period follows from the wall we want.
+        double period = Math.Clamp(GyroidArea * wall / fill, MinLatticePeriod, MaxLatticePeriod);
+        fill = Math.Clamp(Math.Max(fill, GyroidArea * wall / period), 0, 0.95);
+
+        // The level whose walls take up exactly that share of space: a quantile of |gyroid| over one period.
+        const int n = 40;
+        var values = new double[n * n * n];
+        for (int k = 0, m = 0; k < n; k++)
+            for (int j = 0; j < n; j++)
+                for (int i = 0; i < n; i++)
+                    values[m++] = Math.Abs(Gyroid(2 * Math.PI * (i + 0.5) / n, 2 * Math.PI * (j + 0.5) / n,
+                        2 * Math.PI * (k + 0.5) / n));
+        Array.Sort(values);
+        double level = values[Math.Clamp((int)(fill * values.Length), 0, values.Length - 1)];
+
+        return g with
+        {
+            Shell = Math.Max(g.W, 1.2), LatticeK = 2 * Math.PI / period, LatticeLevel = level, LatticeRound = 4 * h,
+        };
     }
 
     // ---------------------------------------------------------------- light fixture (preview only)
@@ -278,7 +333,19 @@ public static class LightSupportGenerator
         double groove = Math.Max(Math.Max(-r - along, lateral - r), Slab(z, g.ZBot - 10, g.ZBot + 2 * r));
 
         double cut = Math.Min(Math.Min(slot, light), Math.Min(hole, groove));
-        return Math.Max(body, -cut);
+        double solid = Math.Max(body, -cut);
+        if (g.LatticeK <= 0) return solid;
+
+        // Hollow base: inside a solid skin, keep only the walls of the lattice.
+        double inner = solid + g.Shell;                 // negative deeper than the skin
+        if (inner >= 0) return solid;
+        double k = g.LatticeK;
+        double wallDist = (Math.Abs(Gyroid(q.X * k, q.Y * k, z * k)) - g.LatticeLevel) / (1.5 * k);
+        // Negative in the empty space between walls. The corners where a wall meets the skin are
+        // rounded: sharp slivers of air there would be thinner than the grid can represent.
+        double blend = Math.Max(g.LatticeRound - Math.Abs(inner + wallDist), 0) / g.LatticeRound;
+        double cavity = Math.Max(inner, -wallDist) + blend * blend * g.LatticeRound / 4;
+        return Math.Max(solid, -cavity);
     }
 
     private static (Vector2 Min, Vector2 Max) FootprintBounds(ProfileSurface profile, Geometry g, bool closed)

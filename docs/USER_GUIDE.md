@@ -152,6 +152,7 @@ When a light support is enabled, the **Export as** option appears above the expo
 | **Wall thickness (mm)** | 2 | Thickness of the base walls. |
 | **Min. base depth (mm)** | 30 | Minimum front-to-back depth of the base, for stability. Only used for flat and curved panels. |
 | **Cable hole Ø (mm)** | 6 | Hole for the power cable. It connects to a groove under the base so the base still sits flat. |
+| **Base fill (%)** | 100 | How much of the inside of the base is material. Below 100 the exported base is hollowed with a lattice that prints without supports. See [Different infill for picture and base](#different-infill-for-picture-and-base). |
 
 ### LED strip / string
 
@@ -241,7 +242,8 @@ These settings are stored in the project.
 
 ## Exporting
 
-- **Export STL…** writes the selected image's model to the file you choose.
+- **File format** chooses between **STL** and **3MF** (see below).
+- **Export…** writes the selected image's model to the file you choose.
 - **Export all…** asks for a folder and writes one model per image, named after each image.
 
 Exports use the full resolution (the preview is simplified). Large, high-resolution models can take a few
@@ -255,8 +257,36 @@ seconds, and the status bar shows progress.
 | **One file – parts side by side** | `name.stl` | Both parts on one plate, ready to slice together. |
 | **One file – assembled** | `name.stl` | The lithophane standing in its base, printed as a single piece. |
 
-All STL files are **binary**, **watertight**, and use **Z = up**, with the model standing upright and
-centred on the origin.
+With the 3MF format the file names end in `.3mf` instead.
+
+All files are **watertight** and use **Z = up**, with the model standing upright and centred on the
+origin. STL files are **binary**.
+
+### Different infill for picture and base
+
+The picture must be printed at 100 % infill, but the base (or the stand) does not need to be solid. An STL
+file holds one undivided object, so with **One file – assembled** the slicer applies the picture's infill
+to the base too. There are two ways around that:
+
+1. **3MF format (recommended).** The picture, the base and the stand are written as separate parts that
+   stay in their place. In the slicer, select each part and give it its own infill:
+   - *PrusaSlicer, OrcaSlicer, Bambu Studio*: the model loads as one object with parts. If the slicer asks
+     whether to load the file as a single object with multiple parts, answer **yes**. Right-click a part in
+     the object list to add an infill setting to it.
+   - *Cura*: the parts load as a group. Ctrl+click a part and use **Per Model Settings** to set its infill.
+
+   **One file – parts side by side** writes two independent objects instead, and a stand is a separate
+   part of the lithophane object.
+2. **Base fill (%).** A value below 100 hollows the exported base itself: a solid skin as thick as the
+   **Wall thickness** (at least 1.2 mm) around a gyroid lattice that prints without supports. The base
+   then stays light in any slicer, even in an STL sliced at 100 % infill. The percentage applies to the
+   inside of the base only, like a slicer's infill, so thin-walled parts of the base stay solid. The
+   preview does not show the lattice, the file gets noticeably larger, and a slicer may report a few
+   non-manifold edges inside the lattice, which it repairs when loading. The stand is too thin to hollow;
+   use 3MF for it.
+
+With 3MF you can leave **Base fill** at 100 and let the slicer do the infill, which is stronger and
+prints cleaner than a lattice built into the model.
 
 ## Printing tips
 

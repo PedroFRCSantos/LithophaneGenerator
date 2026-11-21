@@ -21,12 +21,20 @@ public enum LightSupportType
 
 public enum ExportLayout
 {
-    /// <summary>Lithophane and light support in separate STL files.</summary>
+    /// <summary>Lithophane and light support in separate files.</summary>
     SeparateFiles,
-    /// <summary>One STL with both parts next to each other on the print bed.</summary>
+    /// <summary>One file with both parts next to each other on the print bed.</summary>
     SideBySide,
-    /// <summary>One STL with the lithophane standing in the support (printed as one piece).</summary>
+    /// <summary>One file with the lithophane standing in the support (printed as one piece).</summary>
     Assembled,
+}
+
+public enum ExportFormat
+{
+    /// <summary>Binary STL: one undivided object per file.</summary>
+    Stl,
+    /// <summary>3MF: lithophane, base and stand stay separate parts, each with its own slicer settings.</summary>
+    ThreeMf,
 }
 
 public sealed record LithophaneSettings
@@ -71,6 +79,11 @@ public sealed record LithophaneSettings
     public double LampDepth { get; init; } = 12;
     public bool LampThroughHole { get; init; }
     public double CableDiameter { get; init; } = 6;
+    /// <summary>
+    /// How much of the inside of the base is material, in percent. Below 100 the exported base is
+    /// hollowed out with a lattice, so it stays light even when sliced at 100 % infill.
+    /// </summary>
+    public double SupportFill { get; init; } = 100;
 
     [JsonIgnore] public bool IsClosed => Shape is ShapeType.Cylinder or ShapeType.Heart or ShapeType.Dome;
     [JsonIgnore] public bool HasLightSupport => LightSupport != LightSupportType.None;

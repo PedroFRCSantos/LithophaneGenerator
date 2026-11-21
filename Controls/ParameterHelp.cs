@@ -48,6 +48,7 @@ public static class HelpTopics
         "Shape", "MaxSize", "Thickness", "MinThickness", "Border", "Resolution", "CurveAngle", "StandDepth", "StandHeight",
         "LightSource", "SupportHeight", "SlotDepth", "SlotClearance", "SupportWall", "SupportMinDepth", "CableDiameter",
         "LedChannelWidth", "LedChannelDepth", "LampPreset", "LampDiameter", "LampDepth", "LampThrough", "ShowLight", "Layout",
+        "SupportFill", "Format",
         "Backlit", "LightColor", "LightPower", "Filament",
     };
 }
@@ -72,6 +73,7 @@ public sealed class Sketch : Control
         "cableHole", "grooveUnder", "ledChannelWidth", "ledChannelDepth", "lampHole", "recessDepth", "socketBelow", "previewOnly",
         "teaLightPuck", "sitInRecess", "goThrough", "twoFiles", "separate", "oneFile", "sideBySide", "onePiece", "assembled",
         "blue", "red", "warmCool", "samePrint", "filamentColour", "litThin",
+        "hollowInside", "solidSkin", "oneInfill", "infillPerPart",
     };
 
     private static string L(string key) => Loc.Get("Sketch." + key);
@@ -134,6 +136,8 @@ public sealed class Sketch : Control
             case "LampThrough": Base(ctx, "through", "through"); break;
             case "ShowLight": Base(ctx, "led", "show"); break;
             case "Layout": Layouts(ctx); break;
+            case "SupportFill": HollowBase(ctx); break;
+            case "Format": Formats(ctx); break;
             case "LightColor": Lights(ctx, "color"); break;
             case "LightPower": Lights(ctx, "power"); break;
             case "Filament": Lights(ctx, "filament"); break;
@@ -563,6 +567,54 @@ public sealed class Sketch : Control
         Text(ctx, L("onePiece"), 190, 80, _faint, 9, centre: true);
         Text(ctx, L("assembled"), 190, 100, _ink, 9, centre: true);
         Line(ctx, 10, 118, 230, 118, _thin);
+    }
+
+    /// <summary>Cut through the base: solid skin, lattice of cavities inside.</summary>
+    private void HollowBase(DrawingContext ctx)
+    {
+        const double left = 30, right = 210, top = 50, bottom = 104;
+        // Slot on the right, as in the other base sketches.
+        Poly(ctx, _basefill, _pen, new Point(left, top), new Point(158, top), new Point(158, 66), new Point(172, 66),
+            new Point(172, top), new Point(right, top), new Point(right, bottom), new Point(left, bottom));
+        ctx.DrawRectangle(_plastic, _pen, new Rect(161, 10, 8, 56));
+
+        // Cavities: rounded cells in a staggered pattern, kept away from the outside and from the slot.
+        var hole = new SolidColorBrush(ActualThemeVariant == ThemeVariant.Dark ? Color.Parse("#20242B") : Color.Parse("#F4F6F9"));
+        for (int row = 0; row < 3; row++)
+            for (double x = left + 12 + (row % 2) * 9; x < right - 8; x += 18)
+            {
+                double y = top + 13 + row * 14;
+                if (x > 148 && x < 182 && y < 80) continue;
+                ctx.DrawEllipse(hole, _thin, new Point(x, y), 5.5, 4.5);
+            }
+
+        Text(ctx, L("hollowInside"), 80, 14, _accent, 9, centre: true, maxWidth: 140);
+        Arrow(ctx, 80, 28, 96, 58, _accentPen);
+        Text(ctx, L("solidSkin"), 120, 114, _accent, 9, centre: true);
+        Line(ctx, 20, bottom, 220, bottom, _thin);
+    }
+
+    /// <summary>STL: one object, one infill. 3MF: picture and base are parts with their own infill.</summary>
+    private void Formats(DrawingContext ctx)
+    {
+        void Model(double x, IBrush panel, IBrush box)
+        {
+            ctx.DrawRectangle(box, _pen, new Rect(x - 30, 70, 60, 16));
+            ctx.DrawRectangle(panel, _pen, new Rect(x - 4, 22, 8, 48));
+        }
+        Model(60, _plastic, _plastic);
+        Text(ctx, "100 %", 96, 40, _faint, 9, maxWidth: 30);
+        Text(ctx, "100 %", 96, 72, _faint, 9, maxWidth: 30);
+        Text(ctx, "STL", 60, 92, _ink, 10, centre: true);
+        Text(ctx, L("oneInfill"), 60, 106, _faint, 9, centre: true, maxWidth: 112);
+
+        Line(ctx, 124, 14, 124, 118, _thin);
+
+        Model(170, _plastic, _basefill);
+        Text(ctx, "100 %", 206, 40, _accent, 9, maxWidth: 30);
+        Text(ctx, "15 %", 206, 72, _accent, 9, maxWidth: 30);
+        Text(ctx, "3MF", 170, 92, _ink, 10, centre: true);
+        Text(ctx, L("infillPerPart"), 180, 106, _accent, 9, centre: true, maxWidth: 112);
     }
 
     private void Lights(DrawingContext ctx, string what)

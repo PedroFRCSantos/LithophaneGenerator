@@ -21,6 +21,7 @@ public sealed class LithophaneProject
     public int Version { get; set; } = CurrentVersion;
     public LithophaneSettings Settings { get; set; } = new();
     public ExportLayout Layout { get; set; }
+    public ExportFormat Format { get; set; }
     /// <summary>Index into the lamp preset list in the UI (the last entry is "Custom").</summary>
     public int LampPreset { get; set; }
     public bool Backlit { get; set; }

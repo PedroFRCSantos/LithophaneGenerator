@@ -18,6 +18,13 @@ public static class NoteKeys
 /// <param name="Light">The light inside the support, for the preview only.</param>
 public sealed record ModelParts(Mesh Lithophane, Mesh? Support, LightFixture? Light, IReadOnlyList<Note> Notes);
 
+/// <summary>One file to write.</summary>
+/// <param name="Loose">
+/// The parts of <paramref name="Mesh"/> are independent objects lying next to each other, rather
+/// than pieces of one assembly. Only formats that keep parts apart (3MF) care.
+/// </param>
+public sealed record ExportFile(string Suffix, Mesh Mesh, bool Loose = false);
+
 public static class LithophaneGenerator
 {
     /// <summary>Builds the lithophane mesh, resting on Z = 0 and centred on the origin in X/Y.</summary>
@@ -33,7 +40,11 @@ public static class LithophaneGenerator
     /// Builds the lithophane and, if enabled, its light support, both in the same coordinate frame
     /// (the lithophane standing in the support's slot).
     /// </summary>
-    /// <param name="supportCells">Voxel budget for the support; 0 picks a default suited to export.</param>
+    /// <param name="supportCells">
+    /// Voxel budget for the support; 0 picks a default suited to export. A hollow base
+    /// (<see cref="LithophaneSettings.SupportFill"/>) is only built at export resolution: the lattice is
+    /// hidden inside and too fine for the preview grid.
+    /// </param>
     public static ModelParts GenerateParts(GrayImage image, LithophaneSettings s, int maxNodes = int.MaxValue,
         int supportCells = 0, CancellationToken ct = default)
     {
@@ -62,12 +73,18 @@ public static class LithophaneGenerator
             (i, j) => (pos[j * map.Nu + i], nrm[j * map.Nu + i]),
             (i, j) => map[i, j]);
 
-        if (s.SupportsStand && s.StandDepth > 0 && s.StandHeight > 0 && surface is ProfileSurface profile)
-            AddStand(mesh, map, profile, s);
-
         ct.ThrowIfCancellationRequested();
         if (mesh.SignedVolume() < 0)
             mesh.FlipWinding();
+
+        // The stand is a part of its own, so formats that keep parts apart can give it other print settings.
+        if (s.SupportsStand && s.StandDepth > 0 && s.StandHeight > 0 && surface is ProfileSurface profile)
+        {
+            var stand = BuildStand(map, profile, s);
+            if (stand.SignedVolume() < 0)
+                stand.FlipWinding();
+            mesh.Append(stand, MeshPart.Stand);
+        }
 
         var notes = new List<Note>();
         Mesh? support = null;
@@ -76,7 +93,7 @@ public static class LithophaneGenerator
         {
             var footprint = Surface.Footprint(s, map.WidthMm, map.HeightMm);
             (support, light) = LightSupportGenerator.Generate(s, footprint,
-                supportCells > 0 ? supportCells : 4_000_000, notes, ct);
+                supportCells > 0 ? supportCells : 4_000_000, notes, ct, hollow: supportCells <= 0);
             ct.ThrowIfCancellationRequested();
 
             // How much light reaches each point of the wall; front and back vertices share a node.
@@ -112,19 +129,19 @@ public static class LithophaneGenerator
     }
 
     /// <summary>Returns the meshes to write for the chosen layout, each with a file-name suffix.</summary>
-    public static List<(string Suffix, Mesh Mesh)> Arrange(ModelParts parts, ExportLayout layout)
+    public static List<ExportFile> Arrange(ModelParts parts, ExportLayout layout)
     {
         if (parts.Support == null)
         {
             var only = parts.Lithophane.Clone();
             PlaceOnBed(only);
-            return new() { ("", only) };
+            return new() { new ExportFile("", only) };
         }
 
         switch (layout)
         {
             case ExportLayout.Assembled:
-                return new() { ("", Assemble(parts)) };
+                return new() { new ExportFile("", Assemble(parts)) };
 
             case ExportLayout.SideBySide:
             {
@@ -138,16 +155,17 @@ public static class LithophaneGenerator
                 support.Translate(new Vector3(0, lMax.Y + gap - sMin.Y, 0));
                 litho.AppendSecondary(support);
                 PlaceOnBed(litho);
-                return new() { ("", litho) };
+                return new() { new ExportFile("", litho, Loose: true) };
             }
 
             default:
             {
                 var litho = parts.Lithophane.Clone();
-                var support = parts.Support.Clone();
+                var support = new Mesh();
+                support.AppendSecondary(parts.Support);   // keeps its identity as the base
                 PlaceOnBed(litho);
                 PlaceOnBed(support);
-                return new() { ("_lithophane", litho), ("_light_support", support) };
+                return new() { new ExportFile("_lithophane", litho), new ExportFile("_light_support", support) };
             }
         }
     }
@@ -155,8 +173,9 @@ public static class LithophaneGenerator
     /// <summary>
     /// Stand along the bottom edge, centred on the middle of the wall, from Z = -height up to Z = 0.
     /// </summary>
-    private static void AddStand(Mesh mesh, HeightMap map, ProfileSurface profile, LithophaneSettings s)
+    private static Mesh BuildStand(HeightMap map, ProfileSurface profile, LithophaneSettings s)
     {
+        var mesh = new Mesh();
         float depth = (float)s.StandDepth;
         float offset = (float)(s.Thickness / 2 - s.StandDepth / 2);
         float height = (float)s.StandHeight;
@@ -171,6 +190,7 @@ public static class LithophaneGenerator
             var q = p + n * offset;
             return (new Vector3(q.X, q.Y, j == 0 ? -height : 0f), new Vector3(n.X, n.Y, 0));
         }, (_, _) => depth);
+        return mesh;
     }
 
     /// <summary>

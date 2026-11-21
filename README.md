@@ -43,6 +43,9 @@ internet connection, and was inspired by [3dp.rocks/lithophane](https://3dp.rock
   - a cable hole plus a groove under the base, so the base still sits flat with the cable in place
 - **Three export layouts**: separate files, one file with the parts side by side, or one file with the
   lithophane standing in its support (printed as a single piece).
+- **Different infill for picture and base**: export **3MF** to keep the picture, the base and the stand
+  as separate parts with their own slicer settings, or set a **base fill** below 100 % to hollow the
+  base with a self-supporting lattice that stays light even in a plain STL sliced at 100 % infill.
 - **Interactive 3D preview** (rotate, pan, zoom) that also draws the **light source** inside the
   support (LED strip, tea light, puck or bulb).
 - **Backlit simulator**: pick the **light colour** (warm/cool white, colours or custom), its **power**
@@ -53,7 +56,7 @@ internet connection, and was inspired by [3dp.rocks/lithophane](https://3dp.rock
 - **10 languages**: English, 中文, हिन्दी, Español, العربية, Français, বাংলা, Português, Русский, اردو —
   the interface, messages and help sketches follow your system language, with a switcher in the
   toolbar (Arabic and Urdu lay the window out right-to-left).
-- **Watertight binary STL** export for the selected image, or for every image into a folder.
+- **Watertight binary STL or 3MF** export for the selected image, or for every image into a folder.
 - **Projects (`.lipo`)** store all settings and **embed the images**, so a project still opens after the
   original files are moved.
 - **Session restore**: the app reopens where you left off, including unsaved changes.
@@ -166,7 +169,7 @@ LithophaneGUI my-lamp.lipo            # open a project
    in mm).
 3. Check the result in the 3D preview. Turn on **Backlit view** to judge the contrast.
 4. Optional: choose a **Light source** under *Light support* to generate a base.
-5. Click **Export STL…** and slice the file. Print it upright at 100% infill in white or natural PLA.
+5. Click **Export…** and slice the file. Print it upright at 100% infill in white or natural PLA.
 6. Press **Ctrl+S** to save the project as a `.lipo` file so you can come back to it later.
 
 The [user guide](docs/USER_GUIDE.md) explains every setting and includes printing tips.
@@ -189,6 +192,7 @@ The [user guide](docs/USER_GUIDE.md) explains every setting and includes printin
 | `Core/LightSupportGenerator.cs` | Light support base, modelled as a signed distance field |
 | `Core/SurfaceNets.cs` | Distance field → watertight mesh |
 | `Core/StlWriter.cs` | Binary STL output |
+| `Core/ThreeMfWriter.cs` | 3MF output with the picture, base and stand as separate parts |
 | `Core/LithophaneProject.cs` | `.lipo` project file (JSON: settings + embedded images) |
 | `Rendering/SoftwareRenderer.cs` | Multi-threaded z-buffer preview renderer |
 | `Controls/PreviewControl.cs` | Interactive preview control |

@@ -76,7 +76,7 @@ public partial class MainWindow : Window
             FlowDirection = Loc.Current.IsRightToLeft ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
             LanguageCombo.SelectedIndex = Loc.Languages.ToList().FindIndex(l => l.Code == Loc.Current.Language);
             // A closed ComboBox keeps the text it copied when the item was selected; re-select to refresh it.
-            foreach (var combo in new[] { LayoutCombo, ShapeCombo, LightCombo, LampPresetCombo, LightPresetCombo, FilamentPresetCombo })
+            foreach (var combo in new[] { FormatCombo, LayoutCombo, ShapeCombo, LightCombo, LampPresetCombo, LightPresetCombo, FilamentPresetCombo })
             {
                 int i = combo.SelectedIndex;
                 combo.SelectedIndex = -1;
@@ -132,6 +132,7 @@ public partial class MainWindow : Window
             SupportWall = V(SupportWallBox, 2),
             SupportMinDepth = V(MinDepthBox, 30),
             CableDiameter = V(CableBox, 6),
+            SupportFill = V(SupportFillBox, 100),
             LedChannelWidth = V(LedWidthBox, 12),
             LedChannelDepth = V(LedDepthBox, 6),
             LampDiameter = V(LampDiameterBox, 40),
@@ -165,6 +166,7 @@ public partial class MainWindow : Window
         SupportWallBox.Value = (decimal)s.SupportWall;
         MinDepthBox.Value = (decimal)s.SupportMinDepth;
         CableBox.Value = (decimal)s.CableDiameter;
+        SupportFillBox.Value = (decimal)Math.Clamp(s.SupportFill, 10, 100);
         LedWidthBox.Value = (decimal)s.LedChannelWidth;
         LedDepthBox.Value = (decimal)s.LedChannelDepth;
         LampDiameterBox.Value = (decimal)s.LampDiameter;
@@ -183,6 +185,9 @@ public partial class MainWindow : Window
     {
         if (!_relocalizing) MarkDirty();
     }
+
+    /// <summary>The base is only hollowed in the exported file, so the preview stays as it is.</summary>
+    private void OnSupportFillChanged(object? sender, NumericUpDownValueChangedEventArgs e) => MarkDirty();
 
     private void OnShapeChanged(object? sender, SelectionChangedEventArgs e)
     {
@@ -237,14 +242,14 @@ public partial class MainWindow : Window
         LedPanel.IsVisible = light == LightSupportType.LedStrip;
         LampPanel.IsVisible = light == LightSupportType.Lamp;
         LightHint.IsVisible = ShowLightCheck.IsVisible = light != LightSupportType.None;
-        foreach (var c in new Control[] { SupportHeightBox, SlotDepthBox, ClearanceBox, SupportWallBox, CableBox })
+        foreach (var c in new Control[] { SupportHeightBox, SlotDepthBox, ClearanceBox, SupportWallBox, CableBox, SupportFillBox })
             c.IsEnabled = light != LightSupportType.None;
         // Closed shapes get a tray over the whole inside instead of a channel, and have no front/back depth.
         MinDepthBox.IsEnabled = MinDepthLabel.IsEnabled = light != LightSupportType.None && !closed;
         MinDepthLabel.Opacity = MinDepthBox.IsEnabled ? 1 : 0.5;
         LedWidthBox.IsEnabled = !closed;
         LedWidthLabel.Opacity = closed ? 0.5 : 1;
-        LayoutRow.IsVisible = light != LightSupportType.None;
+        LayoutLabel.IsVisible = LayoutCombo.IsVisible = light != LightSupportType.None;
 
         bool stand = shape != ShapeType.Dome && light == LightSupportType.None;
         StandDepthBox.IsEnabled = StandHeightBox.IsEnabled = stand;
@@ -542,16 +547,24 @@ public partial class MainWindow : Window
     private async void OnExportClick(object? sender, RoutedEventArgs e)
     {
         if (SelectedItem is not { } item) return;
+        var format = SelectedFormat;
+        string ext = Extension(format);
         var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
             Title = Loc.Get("File.SaveStl"),
-            SuggestedFileName = Path.GetFileNameWithoutExtension(item.Name) + ".stl",
-            DefaultExtension = "stl",
-            FileTypeChoices = new[] { new FilePickerFileType(Loc.Get("File.StlModel")) { Patterns = new[] { "*.stl" } } },
+            SuggestedFileName = Path.GetFileNameWithoutExtension(item.Name) + ext,
+            DefaultExtension = ext.TrimStart('.'),
+            FileTypeChoices = new[]
+            {
+                new FilePickerFileType(Loc.Get(format == ExportFormat.ThreeMf ? "File.ThreeMfModel" : "File.StlModel"))
+                {
+                    Patterns = new[] { "*" + ext },
+                },
+            },
         });
         var path = file?.TryGetLocalPath();
         if (path == null) return;
-        await ExportAsync(new[] { (item, path) });
+        await ExportAsync(new[] { (item, path) }, format);
     }
 
     private async void OnExportAllClick(object? sender, RoutedEventArgs e)
@@ -563,12 +576,25 @@ public partial class MainWindow : Window
         var folder = folders.FirstOrDefault()?.TryGetLocalPath();
         if (folder == null) return;
 
+        var format = SelectedFormat;
         var jobs = _images.Select(item =>
-            (item, Path.Combine(folder, Path.GetFileNameWithoutExtension(item.Name) + ".stl"))).ToArray();
-        await ExportAsync(jobs);
+            (item, Path.Combine(folder, Path.GetFileNameWithoutExtension(item.Name) + Extension(format)))).ToArray();
+        await ExportAsync(jobs, format);
     }
 
-    private async Task ExportAsync(IReadOnlyList<(ImageItem Item, string Path)> jobs)
+    private ExportFormat SelectedFormat => (ExportFormat)Math.Max(0, FormatCombo.SelectedIndex);
+
+    private static string Extension(ExportFormat format) => format == ExportFormat.ThreeMf ? ".3mf" : ".stl";
+
+    /// <summary>Name a slicer shows for a part of a 3MF file.</summary>
+    private static string PartName(MeshPart part) => Loc.Get(part switch
+    {
+        MeshPart.Support => "Part.Base",
+        MeshPart.Stand => "Part.Stand",
+        _ => "Part.Picture",
+    });
+
+    private async Task ExportAsync(IReadOnlyList<(ImageItem Item, string Path)> jobs, ExportFormat format)
     {
         _busy = true;
         UpdateExportButtons();
@@ -589,11 +615,17 @@ public partial class MainWindow : Window
 
                 string dir = Path.GetDirectoryName(path) ?? "";
                 string stem = Path.GetFileNameWithoutExtension(path);
-                foreach (var (suffix, mesh) in files)
+                foreach (var (suffix, mesh, loose) in files)
                 {
-                    string target = Path.Combine(dir, stem + suffix + ".stl");
+                    string target = Path.Combine(dir, stem + suffix + Extension(format));
                     SetStatus("Status.Writing", prefix, Path.GetFileName(target), mesh.TriangleCount);
-                    await Task.Run(() => StlWriter.WriteBinary(mesh, target, stem + suffix));
+                    await Task.Run(() =>
+                    {
+                        if (format == ExportFormat.ThreeMf)
+                            ThreeMfWriter.Write(mesh, target, stem + suffix, PartName, loose);
+                        else
+                            StlWriter.WriteBinary(mesh, target, stem + suffix);
+                    });
                     written.Add(target);
                 }
             }
@@ -641,6 +673,7 @@ public partial class MainWindow : Window
     {
         Settings = ReadSettings(),
         Layout = (ExportLayout)Math.Max(0, LayoutCombo.SelectedIndex),
+        Format = SelectedFormat,
         LampPreset = LampPresetCombo.SelectedIndex,
         Backlit = BacklitSwitch.IsChecked == true,
         ShowLight = ShowLightCheck.IsChecked == true,
@@ -665,6 +698,7 @@ public partial class MainWindow : Window
             LampPresetCombo.SelectedIndex = Math.Clamp(project.LampPreset, 0, LampPresets.Length);
             ApplySettings(project.Settings);
             LayoutCombo.SelectedIndex = Math.Clamp((int)project.Layout, 0, LayoutCombo.ItemCount - 1);
+            FormatCombo.SelectedIndex = Math.Clamp((int)project.Format, 0, FormatCombo.ItemCount - 1);
             BacklitSwitch.IsChecked = project.Backlit;
             ShowLightCheck.IsChecked = project.ShowLight;
             LoadSimulation(project);

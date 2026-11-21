@@ -9,7 +9,12 @@ public enum MeshPart
     Support,
     /// <summary>The light source inside the support; preview only, never exported.</summary>
     Light,
+    /// <summary>The foot under a lithophane without a light support; drawn like the lithophane.</summary>
+    Stand,
 }
+
+/// <summary>One part of a mesh: a contiguous run of vertices and of triangles.</summary>
+public readonly record struct PartRange(MeshPart Kind, int VertexStart, int VertexCount, int TriangleStart, int TriangleCount);
 
 public sealed class Mesh
 {
@@ -29,6 +34,22 @@ public sealed class Mesh
 
     /// <summary>Appended parts in order; triangles before the first entry belong to the lithophane.</summary>
     public IReadOnlyList<(MeshPart Kind, int VertexStart, int TriangleStart)> Parts => _parts;
+
+    /// <summary>Every part with its extent, starting with the lithophane the mesh began as.</summary>
+    public List<PartRange> PartRanges()
+    {
+        var ranges = new List<PartRange>();
+        var kind = MeshPart.Lithophane;
+        int vStart = 0, tStart = 0;
+        foreach (var (next, v, t) in _parts)
+        {
+            if (t > tStart) ranges.Add(new PartRange(kind, vStart, v - vStart, tStart, t - tStart));
+            (kind, vStart, tStart) = (next, v, t);
+        }
+        if (TriangleCount > tStart)
+            ranges.Add(new PartRange(kind, vStart, Vertices.Count - vStart, tStart, TriangleCount - tStart));
+        return ranges;
+    }
 
     public Mesh Clone()
     {
